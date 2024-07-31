@@ -1,0 +1,136 @@
+[build-system]
+requires = ["setuptools >= 70.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stack-exchange-backup"
+version = "2024.08.01"
+description = "Download all your posts on the Stack Exchange network as Markdown files."
+readme = "README.md"
+requires-python = ">= 3.12"
+authors = [{ name = "Wei Cheng", email = "weicheng018@gmail.com" }]
+keywords = ["Stack Exchange"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Archiving :: Backup",
+]
+urls.Source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
+dependencies = [
+    "niquests >= 3.7.2, < 4",
+    "pydantic >= 2.8.0, < 3",
+]
+optional-dependencies.dev = [
+    "datamodel-code-generator >= 0.25.8, < 1",
+    "pytest >= 8, < 9",
+    "devtools",
+    "openapi-spec-validator",
+    "pylint",
+    "ruff",
+]
+
+[tool.bumpver]
+current_version = "2024.08.01"
+version_pattern = "YYYY.0M.0D[-PATCH]"
+commit = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    '^current_version = "{version}"',
+    '^version = "{version}"',
+]
+
+[tool.datamodel-codegen]
+input = "./resources/openapi/openapi.yaml"
+input-file-type = "openapi"
+output = "./src/stackexchange/generated/_model_openapi.py"
+output-model-type = "pydantic_v2.BaseModel"
+## Typing customization:
+enum-field-as-literal = "all"
+#strict-types = ["str", "bytes", "int", "float", "bool"] # https://github.com/koxudaxi/datamodel-code-generator/issues/1884
+use-annotated = true
+use-standard-collections = true
+use-union-operator = true
+## Field customization:
+use-default-kwarg = true
+use-field-description = true
+## Model customization:
+collapse-root-models = true
+enable-faux-immutability = true
+enable-version-header = true
+keep-model-order = true
+reuse-model = true
+use-exact-imports = true
+use-schema-description = true
+## Template customization:
+use-double-quotes = true
+## OpenAPI-only options:
+openapi-scopes = [
+    "schemas",
+    "parameters",
+    "paths",
+]
+use-operation-id-as-name = true
+
+# https://pylint.readthedocs.io/en/latest/user_guide/messages/messages_overview.html
+[tool.pylint.main]
+disable = [
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "no-else-return",
+    "redefined-outer-name",
+    "unused-argument",
+    "unused-wildcard-import",
+    "wildcard-import",
+]
+enable = [
+    "useless-suppression",
+]
+fail-under = 9
+ignore-paths = "./src/stackexchange/generated/_model_openapi.py"
+jobs = 0
+output-format = "colorized"
+
+[tool.pylint.format]
+max-line-length = 99
+
+# https://microsoft.github.io/pyright/#/configuration?id=type-check-diagnostics-settings
+[tool.pyright]
+typeCheckingMode = "basic"
+deprecateTypingAliases = true
+reportArgumentType = "warning"
+reportAttributeAccessIssue = "warning"
+reportGeneralTypeIssues = "warning"
+reportUndefinedVariable = "warning"
+
+[tool.ruff]
+line-length = 79
+exclude = ["./**/generated/*.py"]
+
+# https://docs.astral.sh/ruff/rules/
+[tool.ruff.lint]
+ignore = [
+    "F403", # undefined-local-with-import-star
+    "F405", # undefined-local-with-import-star-usage
+    "F722", # forward-annotation-syntax-error
+]
+
+[tool.uv]
+native-tls = true
+
+[tool.uv.pip]
+emit-index-url = true
+generate-hashes = true
+link-mode = "copy"
+no-binary = ["stack-exchange-backup"]
+no-build = true
+reinstall = true
+#require-hashes = true # Doesn't work for editable installs: https://github.com/pypa/pip/issues/4995
+strict = true
+universal = true
+upgrade = true
+verify-hashes = true

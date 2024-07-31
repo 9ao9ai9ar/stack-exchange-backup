@@ -1,3 +1,11 @@
-*.csv
-.vscode
-q_and_a
+/*
+src/*.egg-info/
+!assets/
+!requirements/
+!resources/
+!src/
+!tests/
+!.gitignore
+!LICENSE
+!pyproject.toml
+!README.md
