@@ -1,208 +1,290 @@
 # Stack Exchange Backup
 
-| <img src="assets/se_backup.gif" width="350" /> | <img src="assets/example1.png" width="350" /> |
-| --- | --- |
-| <img src="assets/example2.png" width="350" /> | <img src="assets/example3.png" width="350" /> |
+Download all your posts on the Stack Exchange network as Markdown files
+via a Python script talking to the Stack Exchange API.
 
-Download all of your questions and answers as Markdown files from all Stack Exchange (SE) sites using a Python script and the [SE API](https://api.stackexchange.com/).
+## Showcase
 
-# Getting started
+![Program run demo](assets/demo.avif)
+![Example download file](assets/markdown.png)
 
-To get started, make sure that Python version 3.11.7 or newer is installed. Then, run the
-following commands (note that these commands were tested in Powershell, and so only one of these commands will need to be translated for use in bash, zsh, etc.):
-```bash
-git clone https://github.com/mhdadk/stack-exchange-backup.git
-cd stack-exchange-backup
-# create a virtual environment
-python -m venv .venv
-# activate the virtual environment. This command should be translated when using bash
-.venv\Scripts\activate
-python -m pip install "requests==2.31.0"
+## Installation
+
+1. Either download the repository as a ZIP file and extract it,
+   or [install Git](https://git-scm.com/downloads) (recommended) and do a `git clone` of the project.
+
+   ```shell
+   git clone https://github.com/9ao9ai9ar/stack-exchange-backup.git
+   ```
+
+2. [Install Python 3.12 or newer](https://www.python.org/downloads/).
+   See the [support section](#support) for additional information.
+
+3. Enter the directory you just extracted/cloned.
+
+   ```shell
+   cd stack-exchange-backup
+   ```
+
+   All steps hereafter assume operations under said directory.
+
+4. Create and activate a virtual environment (strongly recommended).
+
+    * Windows:
+
+      ```shell
+      py -3 -m venv .venv
+      .\.venv\Scripts\activate
+      ```
+
+    * macOS/Linux:
+
+       ```shell
+       python3 -m venv .venv
+       . .venv/bin/activate
+       ```
+
+5. Install `stack-exchange-backup` as a local Python package.
+
+   ```shell
+   python -m pip install -r ./requirements.txt
+   python -m pip install .
+   ```
+
+## Usage
+
+Remember to activate the virtual environment first!
+
+```console
+(.venv) $ python -m stackexchange.backup --help
+usage: backup.py [-h] --account-id ACCOUNT_ID [--no-meta] [--out-dir OUT_DIR] [--request-key REQUEST_KEY] [--rps RPS]
+
+options:
+  -h, --help            show this help message and exit
+  --account-id ACCOUNT_ID
+                        account ID
+  --no-meta             do not back up meta posts
+  --out-dir OUT_DIR     output directory (default: q_and_a)
+  --request-key REQUEST_KEY
+                        request key
+  --rps RPS             requests per second limit (default: 20)
 ```
-Finally, determine your SE network user ID by doing the following:
 
-1. Go to https://stackexchange.com/.
-2. Log in to your SE account.
-3. Click on your profile picture on the top-right, as indicated by the red arrow in the screenshot below.
-![](assets/se_click.png)
-4. Go to the address bar in your browser, and the address should be in the form `https://stackexchange.com/users/<user id>/<user name>`. For example, the screenshot below shows my `user id` as `9073934` and my `user name` as `mhdadk`. Note/save the `user id` from the address bar that is shown for your account, as this will be needed later. 
-![](assets/address_bar_userid.png)
+* `ACCOUNT_ID`: the ID of the Stack Exchange account whose posts you want to back up.
+  Note that this is NOT the per-site user ID.
+  To acquire the `ACCOUNT_ID` of a user:
 
-Go to the "Usage" section below for the final step.
+    1. Go to the user's profile page on one of the Stack Exchange network sites
+       and click on either the *View all* link next to *Communities*
+       or the *Network profile* link in the dropdown under *Profiles*.
 
-# Usage
+       ![Jeff Atwood's Stack Overflow user profile page](assets/network_user.png)
 
-Once the steps under the section "Getting started" above are done, you can then download all of your questions and answers from all SE sites by running the following command:
-```powershell
-python main.py --user_id <user id>
-```
-where `<user id>` should be replaced with your own `user id` that you obtained by following the instructions under the "Getting started" section above. See the "Format" section below for details on the format of the files that are downloaded.
+    2. On the new web page that is just opened, note the URL segment after `users` consists of a number:
+       this is the `ACCOUNT_ID` of the user (1 in the case of Jeff Atwood).
 
-**NOTE**: you may notice that, for some SE sites, there are fewer answers downloaded
-under the `answers` directory than the number of answers shown on the SE site itself
-online. The reason for this is that more than one of your answers may be associated with
-the same question. In this case, the question and your multiple answers for it are
-downloaded once only.
+       ![Jeff Atwood's Stack Exchange account page](assets/account_id.png)
 
-# Format
+* `OUT_DIR`: the folder to download your files to.
 
-Once the command under the "Usage" section is run, a `q_and_a` directory will be created inside the directory from which the command was run. This directory will have the following structure:
-```bash
-<stack exchange site 1>.com
-|--- questions
-|---|--- <question 1 id>.md
-|---|--- <question 2 id>.md
-|---|--- ...
-|--- answers
-|---|--- <question id associated with answer 1 id>.md
-|---|--- <question id associated with answer 2 id>.md
-|---|--- ...
-<stack exchange site 2>.com
-|--- questions
-|---|--- <question 1 id>.md
-|---|--- <question 2 id>.md
-|---|--- ...
-|--- answers
-|---|--- <question id associated with answer 1 id>.md
-|---|--- <question id associated with answer 2 id>.md
-|---|--- ...
+* `REQUEST_KEY`: a token that grants an increased download quota.
+  We provide a default request key only for your convenience.
+  As per this [FAQ](https://stackapps.com/q/67),
+  it is advisable that users [bring their own request keys](https://stackapps.com/apps/oauth/register).
+  To access the API without a request key, assign an empty string as the value to this option.
+
+* `RPS`: requests per second, a soft limit imposed on the running program.
+  It is stated [in no uncertain terms](https://api.stackexchange.com/docs/throttle) that
+  the Stack Exchange API considers 30+ requests per second per IP to be very abusive,
+  and will thus ban any rogue IP from making further requests to it for an indefinite period of time.
+  Due to the nature of floating-point arithmetic and the limitations of the current implementation,
+  do not assume it is an exact upper bound on the number of requests the program will make within any one-second period.
+
+## Output
+
+> [!WARNING]  
+> A new output layout is underway.
+> This section will be updated when the design is finalized and pushed.
+
+### Directory Layout
+
+```console
+<OUT_DIR>
++---<stack exchange site 1 domain name>
+|   +---answers
+|   |       <question id associated with answer 1>.md
+|   |       <question id associated with answer 2>.md
+|   |       ...
+|   |
+|   \---questions
+|           <question 1 id>.md
+|           <question 2 id>.md
+|           ...
+|
++---<stack exchange site 2 domain name>
+|   +---answers
+|   |       <question id associated with answer 1>.md
+|   |       <question id associated with answer 2>.md
+|   |       ...
+|   |
+|   \---questions
+|           <question 1 id>.md
+|           <question 2 id>.md
+|           ...
+|
 ...
 ```
-where
-* `<stack exchange site n>` is the name for the `n`th SE site associated with a user.
-* `<question n id>` is the question ID associated with `n`th question for the parent SE site.
-* `<question id associated with answer n id>` is the question ID associated with the `n`th answer for the parent SE site.
 
-The `q_and_a` directory will contain Markdown files with the extension `.md`. Each Markdown
-file will represent either a question or an answer, depending on whether it is under a
-`questions` directory or an `answers` directory. If the Markdown file represents a
-question, then the question creator will be you. Otherwise, if the Markdown file
-represents an answer, the question creator will not be you, but the creator of one of
-the answers included in the Markdown file will be you. More specifically, each Markdown
-file will have the following format (text that is inside angle brackets, such as `<this>`,
-represents text that will vary for each Markdown file):
+### File Layout
+
 ```markdown
 Question downloaded from <question link>
-Question asked by <user name for question creator> on <question date> at <question time>.
+Question asked by <username of question creator> on <question date> at <question time>.
 Number of up votes: <number of up votes for question>
 Number of down votes: <number of down votes for question>
-Score: <overall score associated with the question (number of up votes - number of down votes)>
+Score: <overall score associated with question (number of up votes - number of down votes)>
+
 # <question title>
+
 <question body>
 
-### Comment 1
-Comment made by <user name for creator of comment 1 for the question> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for the question>
+<loop through 1 to i if there are comments to question>
 
-<comment 1 body>
+### Comment <i>
 
-...
+Comment made by <username of comment i creator> on <comment i date> at <comment i time>.
+Comment score: <number of up votes for comment i>
 
-### Comment n
-Comment made by <user name for creator of comment n for the question> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for the question>
+<comment i body>
 
-<comment n for the question body>
+<loop through 1 to j if there are answers to question>
 
-## Answer 1
-Answer by <user name for creator of answer 1> on <answer 1 date> at <answer 1 time>.
-This <is/is not> the accepted answer. <indicates whether this is the accepted answer or not>
-Number of up votes: <number of up votes for answer 1>
-Number of down votes: <number of down votes for answer 1>
-Score: <overall score associated with answer 1 (number of up votes - number of down votes)>
+## Answer <j>
 
-<answer 1 body>
+Answer given by <username of answer j creator> on <answer j date> at <answer j time>.
+This <is/is not> the accepted answer.
+Number of up votes: <number of up votes for answer j>
+Number of down votes: <number of down votes for answer j>
+Score: <overall score associated with answer j (number of up votes - number of down votes)>
 
-### Comment 1
-Comment made by <user name for creator comment 1 for answer 1> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for answer 1>
+<answer j body>
 
-<comment 1 for answer 1 body>
+<loop through 1 to k if there are comments to answer j>
 
-...
+### Comment <k>
 
-### Comment n
-Comment made by <user name for creator comment n for answer 1> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for answer 1>
+Comment made by <username of comment k creator> on <comment k date> at <comment k time>.
+Comment score: <number of up votes for comment k>
 
-<comment n for answer 1 body>
-
-...
-
-## Answer m
-Answer by <user name for creator of answer m> on <answer m date> at <answer m time>.
-This <is/is not> the accepted answer. <indicates whether this is the accepted answer or not>
-Number of up votes: <number of up votes for answer m>
-Number of down votes: <number of down votes for answer m>
-Score: <overall score associated with answer m (number of up votes - number of down votes)>
-
-<answer m body>
-
-### Comment 1
-Comment made by <user name for creator comment 1 for answer m> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for answer m>
-
-<comment 1 for answer m body>
-
-...
-
-### Comment n
-Comment made by <user name for creator comment n for answer m> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for answer m>
-
-<comment n for answer m body>
+<comment k body>
 ```
 
-See the "Logic" section below for an overview of how the `main.py` file works.
+### Omissions
 
-# Logic
+| Item          | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deleted posts | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                       |
+| Saves         | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                 |
+| Area 51 posts | [Area 51 is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                |
+| Articles      | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since release. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the `/users/{ids}/posts` endpoint after [`/articles` has been removed from the API](https://stackapps.com/a/10466). |
 
-This section is intended for anyone interested in how the `main.py` file works, and is
-optional reading. The following steps are added as comments (as `#%% step X`) inside
-the `main.py` file to indicate which part of the file corresponds to which step below.
+## Related Projects
 
-The `main.py` script proceeds as follows:
-1. Given a network user ID, obtain the names of all the SE sites associated with this
-user ID and the corresponding site ID associated with each site.
-2. Create the top-level directory `q_and_a`.
-3. For each SE site obtained in step 1:
+### [Stack Exchange API](https://api.stackexchange.com/)
 
-    (a) Create the `questions` directory for this SE site.
+#### [mhdadk/stack-exchange-backup](https://github.com/mhdadk/stack-exchange-backup)
 
-    (b) Get all questions associated with this user on this SE site.
+The original repository from which this fork is derived.
+I'd like to express my thanks to its author, Mahmoud Abdelkhalek,
+for his well-commented code expedited my process of grokking the Stack Exchange API, which,
+while conceptually simple, has its documentation of related topics,
+some insufficiently explained, and the numerous bugs scattered all over the place.
 
-    (c) For each question associated with this user on this SE site, write the contents
-    of the question, its comments, the answers, and their comments into a Markdown file
-    using the format mentioned in the "Format" section above.
+#### [StackExchangeBackupLaravel](https://github.com/ryancwalsh/StackExchangeBackupLaravelPHP)
 
-    (d) Create the `answers` directory for this SE site.
+StackExchangeBackupLaravel allows exporting a somewhat complete data footprint of a user on the Stack Exchange network,
+but the output files are in JSON rather than Markdown, which are also zipped and uploaded to Amazon S3 by default.
+By contrast, Stack Exchange Backup is simple and straightforward:
+everything is downloaded to the local machine only, and installation is easier and documentation more thorough.
 
-    (e) Get all answers associated with this user on this SE site.
+### [Stack Exchange Data Explorer](https://data.stackexchange.com/)
 
-    (f) For each answer associated with this user on this SE site, get the ID of the
-    question associated with the answer.
+The Stack Exchange Data Explorer (SEDE) is an open source tool
+for running arbitrary queries against public data from the Stack Exchange network.
+There are ready-made queries to export your data to a
+[single HTML file](https://data.stackexchange.com/meta.stackexchange/query/758326)
+or a [CSV file](https://data.stackexchange.com/meta.stackexchange/query/1529864).
+Unfortunately, they are not the one-stop solution to output individual Markdown files as they were originally authored.
+Moreover, to use the SEDE service, you'd either have to log in or solve some CAPTCHAs first,
+and the data is only [refreshed weekly](https://data.stackexchange.com/help#faq),
+as opposed to the data returned by the API, which is [refreshed about once a minute](https://stackapps.com/a/3544).
 
-    (g) For each question ID obtained in step 3(f), get the corresponding question, and
-    then write the contents of the question, its comments, the answers, including yours,
-    and their comments into a Markdown file using the format mentioned in the
-    "Format" section above.
+#### [Pippim Website](https://www.pippim.com/programs/stack.html)
 
-# Alternatives
+This is a demo website that comes with a set of procedures and programs to help
+convert your Stack Exchange posts into a fancy GitHub Pages website.
 
-There are alternative ways of downloading all your questions and answers from each SE
-site:
+### [Stack Exchange Data Dump](https://stackoverflow.com/help/data-dumps)
 
-## `stackapi`
+This is a quarterly dump of all user-contributed data on the Stack Exchange network.
+In an [announcement](https://meta.stackexchange.com/q/401324) made in July 2024,
+the data dumps will no longer be uploaded to the [Internet Archive](https://archive.org/details/stackexchange);
+instead, they will be provided from a section in the site user profile settings.
+Therefore, this method of backup has a few major downsides:
 
-There exists a Python API for the SE API called [`stackapi`](https://github.com/AWegnerGitHub/stackapi)
-that is built on top of the `requests` package. Although this API provides a nice
-interface to the SE API, my goal here was to use as few dependencies as possible to
-lower the risk of obscelesence later on.
+1. Being locked behind a login wall.
+2. Being incomplete, meaning the data dump you download
+   is only for the specific site from which you initiated the request.
+3. Being complete, meaning the download size may be humongous, and to get only your data,
+   you'd have to do some non-trivial parsing of the downloaded XML files yourself.
 
-## Stack Exchange data explorer
+#### [Stack Exchange data dump downloader and transformer](https://github.com/LunarWatcher/se-data-dump-transformer)
 
-The [SE data explorer](https://data.stackexchange.com/) provides another way of obtaining
-a copy of all your questions and answers across all SE sites, via [this query](https://data.stackexchange.com/stackoverflow/query/1811712/all-my-posts-on-the-se-network-with-markdown-and-html-content-plus-editors-and-s) for example. However,
-this query only returns a CSV file, from which the relevant content will need to be
-parsed and then written to Markdown files. Additionally, I am personally not familiar
-with SQL, so I preferred the approach used in the `main.py` file.
+Thankfully, this project exists to address some of the above pain points.
+
+## Development
+
+My personal development process for this project is encoded in `release.ps1`,
+a polyglot script that is valid in both the Bourne shell and PowerShell.
+In addition to the dependencies specified in `pyproject.toml`, the script relies on the following utilities:
+
+* [uv](https://github.com/astral-sh/uv)
+* [security-constraints](https://github.com/mam-dev/security-constraints)
+* [Pyright](https://github.com/microsoft/pyright)
+
+which need to be installed and configured separately as instructed in the comments therein.
+
+To help you in your experimentation with the Stack Exchange API through the documentation web pages,
+I have compiled a list of the parameter types and their associated icons as follows:
+
+* ![string-type](https://cdn.sstatic.net/apiv2/img/text.png): Strings
+* ![number-type](https://cdn.sstatic.net/apiv2/img/number.png):
+  [Numbers](https://api.stackexchange.com/docs/numbers)
+* ![date-type](https://cdn.sstatic.net/apiv2/img/calendar.png):
+  [Dates](https://api.stackexchange.com/docs/dates)
+* ![list-type](https://cdn.sstatic.net/apiv2/img/list.png):
+  [Lists](https://api.stackexchange.com/docs/vectors)
+* ![key-type](https://cdn.sstatic.net/apiv2/img/key.png):
+  [Keys](https://api.stackexchange.com/docs/authentication)
+* ![access-token-type](https://cdn.sstatic.net/apiv2/img/access-token.png):
+  [Access Tokens](https://api.stackexchange.com/docs/authentication)
+
+Except for numbers and dates, the icons are not explained anywhere in the documentation,
+but if you open the inspector in your web browser,
+say when you're on [this page](https://api.stackexchange.com/docs/edit-question),
+and check the `<input>` nodes enclosing the icons you're interested in learning about,
+you'll find that the parameter types are named in the `class` attributes, as `string-type`, `number-type`, etc.
+
+## Support
+
+It is my policy to strive to support, within reason,
+all [non-end-of-life, stable releases](https://devguide.python.org/versions/#status-key) of Python,
+as well as all prominent, up-to-date Python implementations, namely CPython, PyPy and GraalPy.
+If you are a Windows or macOS user, do note that official binaries are not provided for the security releases.
+Thereby, I encourage you to instead install it through one of the following channels
+to benefit from the continuing security fixes:
+
+* [Miniconda](https://docs.anaconda.com/miniconda/)
+* [Miniforge](https://github.com/conda-forge/miniforge)
+* [Micromamba](https://github.com/mamba-org/mamba#micromamba)
+* [Pixi](https://github.com/prefix-dev/pixi)
