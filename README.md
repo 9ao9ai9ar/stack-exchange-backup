@@ -1,208 +1,339 @@
 # Stack Exchange Backup
 
-| <img src="assets/se_backup.gif" width="350" /> | <img src="assets/example1.png" width="350" /> |
-| --- | --- |
-| <img src="assets/example2.png" width="350" /> | <img src="assets/example3.png" width="350" /> |
+Download all your posts on the Stack Exchange network as Markdown files 
+via a Python script talking to the [Stack Exchange API](https://api.stackexchange.com/).
 
-Download all of your questions and answers as Markdown files from all Stack Exchange (SE) sites using a Python script and the [SE API](https://api.stackexchange.com/).
+## Showcase
 
-# Getting started
+![Program run demo](assets/demo.webp)
+![Example download file](assets/markdown.png)
 
-To get started, make sure that Python version 3.11.7 or newer is installed. Then, run the
-following commands (note that these commands were tested in Powershell, and so only one of these commands will need to be translated for use in bash, zsh, etc.):
-```bash
-git clone https://github.com/mhdadk/stack-exchange-backup.git
-cd stack-exchange-backup
-# create a virtual environment
-python -m venv .venv
-# activate the virtual environment. This command should be translated when using bash
-.venv\Scripts\activate
-python -m pip install "requests==2.31.0"
+## Installation
+
+1. Either download the repository as a ZIP file and extract it, 
+    or [install Git](https://git-scm.com/downloads) (recommended) and do a `git clone` of the project:
+
+    ```shell
+    git clone https://github.com/9ao9ai9ar/stack-exchange-backup.git
+    ```
+
+2. [Install Python 3.12+](https://www.python.org/downloads/).
+    See the [support section](#support) for additional information.
+
+3. Enter the directory you just extracted/cloned:
+
+    ```shell
+    cd stack-exchange-backup
+    ```
+
+    All steps hereafter assume operations under said directory.
+
+4. Create and activate a virtual environment (strongly recommended).
+
+    1. If you're on Windows and have kept the defaults when installing Python using the official installer, 
+        the Python Launcher `py` should be installed alongside it, 
+        and you can issue the following command in a command-line shell:
+    
+        ```shell
+        py -3.12 -m venv .venv 
+        ```
+    
+        Otherwise, check the Python version on your *PATH* with `python -V` and, 
+        if it meets the minimum required Python version, 
+        create a virtual environment by executing:
+    
+        ```shell
+        python -m venv .venv
+        ```
+    
+        On Linux, venv is usually in its own package separate from the Python installation, 
+        in which case consult your distribution's documentation on how to install venv before proceeding.
+
+    2. After a virtual environment has been created, you need to activate it.
+        For Linux and macOS, the command is:
+    
+        ```shell 
+        . .venv/bin/activate
+        ```
+    
+        and for Windows it is:
+    
+        ```shell
+        .\.venv\Scripts\activate
+        ```
+    
+        Note that if you're using PowerShell on Windows, 
+        you'd first have to enable script execution in order to activate the virtual environment:
+    
+        ```powershell
+        Set-ExecutionPolicy -ExecutionPolicy AllSigned -Scope CurrentUser
+        ```
+
+5. Install `stack-exchange-backup` as a local Python package using pip:
+
+    ```shell
+    python -m pip install .
+    ```
+    
+    You may have to [ensure pip is installed](https://pip.pypa.io/en/stable/installation/) because, 
+    like venv, pip doesn't come bundled with Python in most Linux distributions.
+
+In the future, I may consider publishing the program either as a package on PyPI or as a self-contained executable, 
+so that the installation guide can be simpler than it already is.
+
+## Usage
+
+```console
+$ python -m stackexchange.backup --help
+usage: backup.py [-h] --account_id ACCOUNT_ID [--out_dir OUT_DIR] [--request_key REQUEST_KEY] [--rps RPS]
+
+options:
+  -h, --help            show this help message and exit
+  --account_id ACCOUNT_ID
+                        account id
+  --out_dir OUT_DIR     output directory
+  --request_key REQUEST_KEY
+                        request key
+  --rps RPS             requests per second limit
 ```
-Finally, determine your SE network user ID by doing the following:
 
-1. Go to https://stackexchange.com/.
-2. Log in to your SE account.
-3. Click on your profile picture on the top-right, as indicated by the red arrow in the screenshot below.
-![](assets/se_click.png)
-4. Go to the address bar in your browser, and the address should be in the form `https://stackexchange.com/users/<user id>/<user name>`. For example, the screenshot below shows my `user id` as `9073934` and my `user name` as `mhdadk`. Note/save the `user id` from the address bar that is shown for your account, as this will be needed later. 
-![](assets/address_bar_userid.png)
+* `ACCOUNT_ID`: the ID of a Stack Exchange account.
+Note that this is NOT the per-site user IDs you normally see on a user's profile page.
+To acquire the `ACCOUNT_ID` of a user:
 
-Go to the "Usage" section below for the final step.
+    1. Go to the user's profile page on one of the Stack Exchange network sites, 
+        and click on either the *View all* link next to *Communities* 
+        or the *Network profile* link in the dropdown under *Profiles*.
+       
+        ![Jeff Atwood's Stack Overflow user profile page](assets/network_user.png)
 
-# Usage
+    2. On the new web page that is just opened, 
+        note the URL segment after `users` consists of a number: 
+        this is the `ACCOUNT_ID` of the user (1 in the case of Jeff Atwood).
 
-Once the steps under the section "Getting started" above are done, you can then download all of your questions and answers from all SE sites by running the following command:
-```powershell
-python main.py --user_id <user id>
-```
-where `<user id>` should be replaced with your own `user id` that you obtained by following the instructions under the "Getting started" section above. See the "Format" section below for details on the format of the files that are downloaded.
+        ![Jeff Atwood's Stack Exchange account page](assets/account_id.png)
 
-**NOTE**: you may notice that, for some SE sites, there are fewer answers downloaded
-under the `answers` directory than the number of answers shown on the SE site itself
-online. The reason for this is that more than one of your answers may be associated with
-the same question. In this case, the question and your multiple answers for it are
-downloaded once only.
+* `OUT_DIR`: the root folder to download your files to, 
+can be either a relative path or an absolute path.
+Defaults to `q_and_a`.
 
-# Format
+* `REQUEST_KEY`: we provide a default request key only for your convenience.
+As per this [FAQ](https://stackapps.com/q/67) on Stack Apps, 
+it is advisable that users [bring their own request keys](https://stackapps.com/apps/oauth/register).
+To access the API without a request key, you can give `""` as the value to this option.
 
-Once the command under the "Usage" section is run, a `q_and_a` directory will be created inside the directory from which the command was run. This directory will have the following structure:
-```bash
-<stack exchange site 1>.com
-|--- questions
-|---|--- <question 1 id>.md
-|---|--- <question 2 id>.md
-|---|--- ...
-|--- answers
-|---|--- <question id associated with answer 1 id>.md
-|---|--- <question id associated with answer 2 id>.md
-|---|--- ...
-<stack exchange site 2>.com
-|--- questions
-|---|--- <question 1 id>.md
-|---|--- <question 2 id>.md
-|---|--- ...
-|--- answers
-|---|--- <question id associated with answer 1 id>.md
-|---|--- <question id associated with answer 2 id>.md
-|---|--- ...
+* `RPS`: requests per second, defined as a soft limit in the current implementation of the program.
+It is stated in the [docs](https://api.stackexchange.com/docs/throttle) in no uncertain terms that 
+the Stack Exchange API considers 30+ requests per second per IP to be very abusive, 
+and will thus ban the rogue IP from making further requests to the API for an indefinite period of time.
+Due to the nature of floating-point arithmetic and the limitations of the current implementation, 
+do not assume it is an exact upper bound on the number of requests the program will make within any one-second period.
+In light of this, the default is a rather conservative 20 requests per second.
+
+## Format
+
+**NOTE**: The output directory structure, filenames as well as the Markdown content layout format, 
+are all still subject to change without prior notice.
+If the output format is modified, this README will be updated to reflect the changes.
+
+The output directory has the following structure:
+
+```console
++---<stack exchange site 1 hostname>
+|   +---answers
+|   |       <question id associated with answer 1 id>.md
+|   |       <question id associated with answer 2 id>.md
+|   |       ...
+|   |
+|   \---questions
+|           <question 1 id>.md
+|           <question 2 id>.md
+|           ...
+|
++---<stack exchange site 2 hostname>
+|   +---answers
+|   |       <question id associated with answer 1 id>.md
+|   |       <question id associated with answer 2 id>.md
+|   |       ...
+|   |
+|   \---questions
+|           <question 1 id>.md
+|           <question 2 id>.md
+|           ...
+|
 ...
 ```
-where
-* `<stack exchange site n>` is the name for the `n`th SE site associated with a user.
-* `<question n id>` is the question ID associated with `n`th question for the parent SE site.
-* `<question id associated with answer n id>` is the question ID associated with the `n`th answer for the parent SE site.
 
-The `q_and_a` directory will contain Markdown files with the extension `.md`. Each Markdown
-file will represent either a question or an answer, depending on whether it is under a
-`questions` directory or an `answers` directory. If the Markdown file represents a
-question, then the question creator will be you. Otherwise, if the Markdown file
-represents an answer, the question creator will not be you, but the creator of one of
-the answers included in the Markdown file will be you. More specifically, each Markdown
-file will have the following format (text that is inside angle brackets, such as `<this>`,
-represents text that will vary for each Markdown file):
+Each Markdown file will represent either a question or an answer, 
+depending on whether it is under a `questions` directory or an `answers` directory.
+If the Markdown file represents a question, then the question creator will be you.
+Otherwise, if the Markdown file represents an answer, the question creator will not be you, 
+but the creator of one of the answers included in the Markdown file will be you.
+More specifically, each Markdown file will have the following format 
+(text that is inside angle brackets, such as `<this>`, represents text that will vary for each Markdown file):
+
 ```markdown
 Question downloaded from <question link>
-Question asked by <user name for question creator> on <question date> at <question time>.
+Question asked by <username for question creator> on <question date> at <question time>.
 Number of up votes: <number of up votes for question>
 Number of down votes: <number of down votes for question>
 Score: <overall score associated with the question (number of up votes - number of down votes)>
+
 # <question title>
 <question body>
 
-### Comment 1
-Comment made by <user name for creator of comment 1 for the question> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for the question>
+<loop through 1..i if there are comments for the question>
 
-<comment 1 body>
+### Comment <i>
+Comment made by <username for comment i creator> on <comment i date> at <comment i time>.
+Comment score: <number of up votes for comment i>
 
-...
+<comment i body>
 
-### Comment n
-Comment made by <user name for creator of comment n for the question> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for the question>
+<loop through 1..j if there are answers for the question>
 
-<comment n for the question body>
+## Answer <j>
+Answer given by <username for answer j creator> on <answer j date> at <answer j time>.
+This <is/is not> the accepted answer.
+Number of up votes: <number of up votes for answer j>
+Number of down votes: <number of down votes for answer j>
+Score: <overall score associated with answer j (number of up votes - number of down votes)>
 
-## Answer 1
-Answer by <user name for creator of answer 1> on <answer 1 date> at <answer 1 time>.
-This <is/is not> the accepted answer. <indicates whether this is the accepted answer or not>
-Number of up votes: <number of up votes for answer 1>
-Number of down votes: <number of down votes for answer 1>
-Score: <overall score associated with answer 1 (number of up votes - number of down votes)>
+<answer j body>
 
-<answer 1 body>
+<loop through 1..k if there are comments for answer j>
 
-### Comment 1
-Comment made by <user name for creator comment 1 for answer 1> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for answer 1>
+### Comment <k>
+Comment made by <username for comment k creator> on <comment k date> at <comment k time>.
+Comment score: <number of up votes for comment k>
 
-<comment 1 for answer 1 body>
-
-...
-
-### Comment n
-Comment made by <user name for creator comment n for answer 1> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for answer 1>
-
-<comment n for answer 1 body>
-
-...
-
-## Answer m
-Answer by <user name for creator of answer m> on <answer m date> at <answer m time>.
-This <is/is not> the accepted answer. <indicates whether this is the accepted answer or not>
-Number of up votes: <number of up votes for answer m>
-Number of down votes: <number of down votes for answer m>
-Score: <overall score associated with answer m (number of up votes - number of down votes)>
-
-<answer m body>
-
-### Comment 1
-Comment made by <user name for creator comment 1 for answer m> on <comment 1 date> at <comment 1 time>.
-Comment score: <number of up votes for comment 1 for answer m>
-
-<comment 1 for answer m body>
-
-...
-
-### Comment n
-Comment made by <user name for creator comment n for answer m> on <comment n date> at <comment n time>.
-Comment score: <number of up votes for comment n for answer m>
-
-<comment n for answer m body>
+<comment k body>
 ```
 
-See the "Logic" section below for an overview of how the `main.py` file works.
+## Alternatives
 
-# Logic
+### [mhdadk/stack-exchange-backup](https://github.com/mhdadk/stack-exchange-backup)
 
-This section is intended for anyone interested in how the `main.py` file works, and is
-optional reading. The following steps are added as comments (as `#%% step X`) inside
-the `main.py` file to indicate which part of the file corresponds to which step below.
+The original repository from which this fork is derived.
+I'd like to express my thanks to its author, Mahmoud Abdelkhalek, 
+for his well-commented code expedited my process of grokking the Stack Exchange API, which, 
+while conceptually simple, has its documentation of related topics and the numerous bugs scattered all over the place, 
+and certain important terms left undefined.
+His code also has fewer dependencies, reliant only on the popular `requests` package, 
+and, due to using only the builtin data structures, uses around 30% less memory.
+I only learnt of [Pydantic V2's high memory usage](https://github.com/pydantic/pydantic/issues/8652) 
+after the rewrite is mostly complete.
+If I had discovered the issue earlier, I might have gone with the less resource demanding 
+and potentially more performant [msgspec](https://github.com/jcrist/msgspec), 
+despite it being written mostly in Python rather than Rust and having fewer features.
+Hopefully, Pydantic fixes their high memory consumption in a future release 
+so that I only have to update to a newer version of the package instead of modifying the source code.
 
-The `main.py` script proceeds as follows:
-1. Given a network user ID, obtain the names of all the SE sites associated with this
-user ID and the corresponding site ID associated with each site.
-2. Create the top-level directory `q_and_a`.
-3. For each SE site obtained in step 1:
+### [ryancwalsh/StackExchangeBackupLaravelPHP](https://github.com/ryancwalsh/StackExchangeBackupLaravelPHP)
 
-    (a) Create the `questions` directory for this SE site.
+StackExchangeBackupLaravel allows exporting a more complete data footprint of 
+a user on the Stack Exchange network, but the outputs are in JSON rather than Markdown.
 
-    (b) Get all questions associated with this user on this SE site.
+### [Stack Exchange Data Explorer](https://data.stackexchange.com/)
 
-    (c) For each question associated with this user on this SE site, write the contents
-    of the question, its comments, the answers, and their comments into a Markdown file
-    using the format mentioned in the "Format" section above.
+The Stack Exchange Data Explorer (SEDE) is an open source tool 
+for running arbitrary queries against public data from the Stack Exchange network.
+There are ready-made queries to back up your posts on the Stack Exchange network as a 
+[single HTML file](https://data.stackexchange.com/meta.stackexchange/query/758326), or as a 
+[CSV that includes both HTML and Markdown contents](https://data.stackexchange.com/meta.stackexchange/query/1811712).
+Unfortunately, they are still more than one click away from outputting the Markdown as individual source files.
+Moreover, to use the SEDE service, you'd either have to log in or solve some CAPTCHAs first, 
+and [the data is only updated every Sunday morning around 3:00 UTC](https://data.stackexchange.com/help#faq), 
+as opposed to the data returned by the API, 
+[which is updated about once a minute](https://stackapps.com/a/4665).
 
-    (d) Create the `answers` directory for this SE site.
+### [Stack Exchange Data Dump](https://archive.org/details/stackexchange)
 
-    (e) Get all answers associated with this user on this SE site.
+This is a quarterly dump of all user-contributed data on the Stack Exchange network.
+In an [announcement](https://meta.stackexchange.com/q/401324) made in July 2024, 
+the data dumps will no longer be uploaded to the Internet Archive; 
+instead, they will be provided from a section of the site user profile on a Stack Exchange profile.
+This is set to go into effect by mid-August, 2024.
+Therefore, this method of backup has two major downsides:
 
-    (f) For each answer associated with this user on this SE site, get the ID of the
-    question associated with the answer.
+1. Being locked behind a login wall.
+2. Being complete, meaning that the download size is humongous, and to get only your data, 
+    you'd have to do some non-trivial parsing of the downloaded XML files yourself.
 
-    (g) For each question ID obtained in step 3(f), get the corresponding question, and
-    then write the contents of the question, its comments, the answers, including yours,
-    and their comments into a Markdown file using the format mentioned in the
-    "Format" section above.
+## Development
 
-# Alternatives
+In addition to the `dev` dependencies, this project relies on the following tools: 
 
-There are alternative ways of downloading all your questions and answers from each SE
-site:
+* [uv](https://github.com/astral-sh/uv) (install standalone executable)
+* [Pyright](https://github.com/microsoft/pyright) (`npm install pyright`)
+* [security-constraints](https://github.com/mam-dev/security-constraints) (`uv tool install security-constraints`)
+* [BumpVer](https://github.com/mbarkhau/bumpver) (`uv tool install bumpver`)
 
-## `stackapi`
+Everytime I want to checkpoint my code, I run the following commands in PowerShell:
 
-There exists a Python API for the SE API called [`stackapi`](https://github.com/AWegnerGitHub/stackapi)
-that is built on top of the `requests` package. Although this API provides a nice
-interface to the SE API, my goal here was to use as few dependencies as possible to
-lower the risk of obscelesence later on.
+```pwsh
+#!/usr/bin/env pwsh
 
-## Stack Exchange data explorer
+# Define and input your SC_GITHUB_TOKEN:
+# $env:SC_GITHUB_TOKEN = "..."
+$true | Out-Null `
+&& uv self update `
+&& security-constraints --min-severity low --output ./requirements/constraints.txt `
+&& uv pip compile `
+    --constraint ./requirements/constraints.txt `
+    --output-file ./requirements/prod.txt `
+    ./pyproject.toml `
+&& uv pip compile `
+    --extra dev `
+    --constraint ./requirements/prod.txt `
+    --constraint ./requirements/constraints.txt `
+    --output-file ./requirements/dev.txt `
+    ./pyproject.toml `
+&& uv pip sync ./requirements/dev.txt `
+&& uv pip install --editable . `
+&& python -m openapi_spec_validator --errors all ./resources/openapi/openapi.yaml `
+&& python -m datamodel_code_generator `
+&& python -m ruff check `
+&& python -m pylint ./src/ ./tests/ `
+&& npm update pyright `
+&& pyright `
+&& python -m pytest -vvr A --no-summary ./tests/ `
+&& bumpver update --patch --no-fetch
+```
 
-The [SE data explorer](https://data.stackexchange.com/) provides another way of obtaining
-a copy of all your questions and answers across all SE sites, via [this query](https://data.stackexchange.com/stackoverflow/query/1811712/all-my-posts-on-the-se-network-with-markdown-and-html-content-plus-editors-and-s) for example. However,
-this query only returns a CSV file, from which the relevant content will need to be
-parsed and then written to Markdown files. Additionally, I am personally not familiar
-with SQL, so I preferred the approach used in the `main.py` file.
+To help you in your experimentation with the Stack Exchange APIs through the documentation webpages, 
+I have compiled a list of the parameter types and their associated icons as below:
+
+* ![string-type](https://cdn.sstatic.net/apiv2/img/text.png): Strings
+* ![number-type](https://cdn.sstatic.net/apiv2/img/number.png): 
+[Numbers](https://api.stackexchange.com/docs/numbers)
+* ![date-type](https://cdn.sstatic.net/apiv2/img/calendar.png): 
+[Dates](https://api.stackexchange.com/docs/dates)
+* ![list-type](https://cdn.sstatic.net/apiv2/img/list.png): 
+[Lists](https://api.stackexchange.com/docs/vectors)
+* ![key-type](https://cdn.sstatic.net/apiv2/img/key.png): 
+[Keys](https://api.stackexchange.com/docs/authentication)
+* ![access-token-type](https://cdn.sstatic.net/apiv2/img/access-token.png): 
+[Access Tokens](https://api.stackexchange.com/docs/authentication)
+
+Except for numbers and dates, the icons are not explained anywhere in the documentation, 
+but if you open up the inspector in your web browser, 
+say when you're on [this page](https://api.stackexchange.com/docs/edit-question), and check the `input` nodes, 
+you'll see that the `class` attributes include `string-type`, `number-type`, etc., 
+which give you enough hint of how they should be inputted.
+
+## Support
+
+It is my policy to strive to support all 
+[non-end-of-life stable releases](https://devguide.python.org/versions/#status-key) of Python.
+However, indispensable features I rely on are sometimes not supported on older Python versions without backporting.
+Therefore, I can only promise my code will run on the latest bugfix release of Python.
+If you are a Windows user and wants to use an older, supported Python release, 
+do note that the official website does not provide binaries for the security releases, 
+so I encourage you to instead install it through one of the following conda distributions or package managers 
+to benefit from the continuing security fixes:
+
+* [Miniconda](https://docs.anaconda.com/miniconda/)
+* [Miniforge](https://github.com/conda-forge/miniforge)
+* [Micromamba](https://mamba.readthedocs.io/en/latest/installation/micromamba-installation.html)
+* [Pixi](https://pixi.sh/latest/)

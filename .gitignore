@@ -1,5 +1,6 @@
 /*
-src/*.egg-info/
+**/*.egg-info/
+**/__pycache__/
 !assets/
 !requirements/
 !resources/
