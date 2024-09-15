@@ -3,6 +3,7 @@
 **/__pycache__/
 !assets/
 !requirements/
+requirements/constraints.txt
 !resources/
 !src/
 !tests/
@@ -10,3 +11,5 @@
 !LICENSE
 !pyproject.toml
 !README.md
+!release.ps1
+!release.sh

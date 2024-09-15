@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
 
-from typing_extensions import TextIO, cast
+from typing_extensions import Literal, TextIO, cast
 
 from stackexchange.api import StackExchangeApi
 from stackexchange.model_extend import *
@@ -32,37 +32,12 @@ class NetworkUserSlim:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--account_id",
-        type=int,
-        required=True,
-        help="account id",
-    )
-    parser.add_argument(
-        "--out_dir",
-        default="q_and_a",
-        type=str,
-        help="output directory",
-    )
-    parser.add_argument(
-        "--request_key",
-        default=StackExchangeApi.API_KEY,
-        type=str,
-        help="request key",
-    )
-    parser.add_argument(
-        "--rps",
-        default=20,
-        type=int,
-        help="requests per second limit",
-    )
-    args = parser.parse_args()
+    args = prepare_argument_parser().parse_args()
     backup_root = Path(args.out_dir).resolve()
     backup_root.mkdir(exist_ok=True)
     global _api  # pylint: disable=global-statement
     _api = StackExchangeApi(request_key=args.request_key, rps=args.rps)
-    network_users = get_network_users(args.account_id)
+    network_users = get_network_users(args.account_id, args.no_meta)
     print(f"Found {len(network_users)} Stack Exchange sites associated with "
           + f"https://stackexchange.com/users/{args.account_id}/")
     for i, network_user in enumerate(network_users, start=1):
@@ -82,17 +57,54 @@ def main() -> None:
         print("Done.")
 
 
-def get_network_users(account_id: int) -> list[NetworkUserSlim]:
+def prepare_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--account-id",
+        type=int,
+        required=True,
+        help="account ID",
+    )
+    parser.add_argument(
+        "--no-meta",
+        action="store_true",
+        help="do not back up meta posts",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default="q_and_a",
+        type=str,
+        help="output directory (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--request-key",
+        default=StackExchangeApi.API_KEY,
+        type=str,
+        help="request key",
+    )
+    parser.add_argument(
+        "--rps",
+        default=20,
+        type=int,
+        help="requests per second limit (default: %(default)d)",
+    )
+    return parser
+
+
+def get_network_users(account_id: int, no_meta: bool) -> list[NetworkUserSlim]:
     """
 
     :param account_id:
+    :param no_meta:
     :return:
     """
     associated_users = _api.associated_users(
         AssociatedUsersParameters(
             ids=cast(list[str], [account_id]),
             filter="!2SUoF4c)sOul00Zq",
-            types=["main_site", "meta_site"],
+            types=cast(list[Literal["main_site", "meta_site"]],
+                       ["main_site"] if no_meta
+                       else ["main_site", "meta_site"]),
         )
     )
     network_users = list[NetworkUserSlim](
@@ -106,12 +118,15 @@ def get_network_users(account_id: int) -> list[NetworkUserSlim]:
                 if associated_user.user_id
                    and associated_user.site_url
                    and associated_user.site_url.host
+                   and (associated_user.site_url.host
+                        != "meta.stackexchange.com" or not no_meta)
                 else None
                 for associated_user in associated_users or []
             )
         )
     )
-    acquire_missing_network_users(network_users)
+    if not no_meta:
+        acquire_missing_network_users(network_users)
     return network_users
 
 
@@ -151,7 +166,7 @@ def backup_questions(network_user: NetworkUserSlim, backup_root: Path) -> None:
     :param backup_root:
     :return:
     """
-    f: BakedInFilter = "6(Kf1Nok-_lSPXKCtHLJwx-lErW2vKXX0.cTH70g*TOaJsLcz1fY(j_pvVWgk1G"  # noqa
+    f: BakedInFilter = "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl"  # noqa
     questions = _api.questions_on_users(
         QuestionsOnUsersParameters(
             ids=cast(list[str], [network_user.user_id]),
@@ -183,7 +198,7 @@ def backup_answers(account_id: int,
             filter="!6aC-iR(QLBu-5SKm",
         )
     )
-    f: BakedInFilter = "6(Kf1Nok-_lSPXKCtHLJwx-lErW2vKXX0.cTH70g*TOaJsLcz1fY(j_pvVWgk1G"  # noqa
+    f: BakedInFilter = "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl"  # noqa
     questions = _api.questions_by_ids(
         QuestionsByIdsParameters(
             ids=cast(list[str],

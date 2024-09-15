@@ -57,7 +57,7 @@ def expected_filters():
                 # we must also include comment.body in the filter
                 # in order to get comment.body_markdown in the response.
                 (
-                    "6(Kf1Nok-_lSPXKCtHLJwx-lErW2vKXX0.cTH70g*TOaJsLcz1fY(j_pvVWgk1G",
+                    "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl",
                     "unsafe",
                     sorted([
                         ".backoff",
@@ -88,6 +88,7 @@ def expected_filters():
                         "question.score",
                         "question.title",
                         "question.up_vote_count",
+                        "shallow_user.account_id",
                         "shallow_user.display_name",
                     ]),
                 ),

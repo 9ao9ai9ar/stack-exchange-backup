@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2024.08.01"
+version = "2024.09.15"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
 readme = "README.md"
 requires-python = ">= 3.12"
@@ -14,18 +14,21 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: MIT License",
-    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: System :: Archiving :: Backup",
 ]
 urls.Source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
-    "niquests >= 3.7.2, < 4",
+    "niquests >= 3, < 4",
     "pydantic >= 2.8.0, < 3",
 ]
 optional-dependencies.dev = [
-    "datamodel-code-generator >= 0.25.8, < 1",
+    "datamodel-code-generator >= 0.26.0, < 1",
     "pytest >= 8, < 9",
+    "bumpver",
     "devtools",
     "openapi-spec-validator",
     "pylint",
@@ -33,7 +36,7 @@ optional-dependencies.dev = [
 ]
 
 [tool.bumpver]
-current_version = "2024.08.01"
+current_version = "2024.09.15"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
@@ -49,6 +52,7 @@ input-file-type = "openapi"
 output = "./src/stackexchange/generated/_model_openapi.py"
 output-model-type = "pydantic_v2.BaseModel"
 ## Typing customization:
+base-class = "stackexchange._model_base.MyBaseModel"
 enum-field-as-literal = "all"
 #strict-types = ["str", "bytes", "int", "float", "bool"] # https://github.com/koxudaxi/datamodel-code-generator/issues/1884
 use-annotated = true
@@ -59,8 +63,7 @@ use-default-kwarg = true
 use-field-description = true
 ## Model customization:
 collapse-root-models = true
-enable-faux-immutability = true
-enable-version-header = true
+disable-timestamp = true
 keep-model-order = true
 reuse-model = true
 use-exact-imports = true

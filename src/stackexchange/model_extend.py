@@ -1,7 +1,6 @@
 from annotated_types import MaxLen
-# noinspection PyUnresolvedReferences
-from pydantic import BaseModel
 from pydantic import (
+    ConfigDict,
     PlainSerializer,
     model_serializer,
     model_validator,
@@ -11,6 +10,8 @@ from pydantic.fields import FieldInfo
 from pydantic_core.core_schema import SerializerFunctionWrapHandler
 from typing_extensions import override
 
+# noinspection PyUnresolvedReferences
+from stackexchange._model_base import MyBaseModel
 # noinspection PyProtectedMember
 from stackexchange.generated._model_openapi import *
 
@@ -57,29 +58,6 @@ __all__ = [
     "AssociatedUsersParameters",
 ]
 
-for model in (
-        Answer,
-        Collective,
-        Comment,
-        Error,
-        Filter,
-        NetworkUser,
-        Question,
-        Site,
-        BadgeCount,
-        ClosedDetails,
-        CollectiveExternalLink,
-        CollectiveRecommendation,
-        MigrationInfo,
-        NetworkPost,
-        Notice,
-        OriginalQuestion,
-        RelatedSite,
-        ShallowUser,
-        Styling,
-):
-    model.model_config["extra"] = "forbid"
-
 type BuiltInFilter = Literal[
     "default",
     "withbody",
@@ -89,14 +67,13 @@ type BuiltInFilter = Literal[
 type BakedInFilter = Literal[
     "!6aC-iR(QLBu-5SKm",
     "!2SUoF4c)sOul00Zq",
-    "6(Kf1Nok-_lSPXKCtHLJwx-lErW2vKXX0.cTH70g*TOaJsLcz1fY(j_pvVWgk1G",
+    "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl",
     "!-0ttWpKaHtrB(oS",
 ]
 
 
 class Response[T](ResponseWrapper):
-    model_config = ConfigDict(extra="forbid")
-    items: Annotated[list[T] | None, Field(default=None, fail_fast=True)]
+    items: Annotated[list[T] | None, Field(fail_fast=True)] = None
     """
     an array of the type found in type
     """
@@ -124,8 +101,10 @@ def list_to_semicolon_delimited_str(lst):
         return lst
 
 
-class ParametersModel(BaseModel):
-    model_config = ConfigDict(extra="allow")
+# https://github.com/pydantic/pydantic/issues/9992
+# Model config in inheritance doesn't respect MRO.
+class ParametersModel(MyBaseModel):
+    model_config = ConfigDict(extra="allow", frozen=False)
     """Extra attributes: ``ignore`` (default), ``allow``, ``forbid``.
     
     When set to ``allow``, additional parameters like 
@@ -165,55 +144,52 @@ class ParametersModel(BaseModel):
             self.auth = __context
 
 
-class QuestionsByIdsParameters(ParametersModel, QuestionsByIdsParametersQuery):
+class QuestionsByIdsParameters(QuestionsByIdsParametersQuery, ParametersModel):
     ids: Annotated[list[str], Field(exclude=True, max_length=100)]
 
 
-class AnswersOnUsersParameters(ParametersModel, AnswersOnUsersParametersQuery):
+class AnswersOnUsersParameters(AnswersOnUsersParametersQuery, ParametersModel):
     ids: Annotated[list[str], Field(exclude=True, max_length=100)]
 
 
-class QuestionsOnUsersParameters(ParametersModel,
-                                 QuestionsOnUsersParametersQuery):
+class QuestionsOnUsersParameters(QuestionsOnUsersParametersQuery,
+                                 ParametersModel):
     ids: Annotated[list[str], Field(exclude=True, max_length=100)]
 
 
-class SimulateErrorParameters(ParametersModel, SimulateErrorParametersQuery):
+class SimulateErrorParameters(SimulateErrorParametersQuery, ParametersModel):
     id: Annotated[int, Field(exclude=True)]
 
 
-class CreateFilterParameters(ParametersModel, CreateFilterParametersQuery):
+class CreateFilterParameters(CreateFilterParametersQuery, ParametersModel):
     include: Annotated[
         list[str] | None,
-        Field(default=None),
         PlainSerializer(list_to_semicolon_delimited_str,
                         when_used="unless-none"),
-    ]
+    ] = None
     exclude: Annotated[
         list[str] | None,
-        Field(default=None),
         PlainSerializer(list_to_semicolon_delimited_str,
                         when_used="unless-none"),
-    ]
+    ] = None
 
 
-class ReadFilterParameters(ParametersModel, ReadFilterParametersQuery):
+class ReadFilterParameters(ReadFilterParametersQuery, ParametersModel):
     filters: Annotated[list[str], Field(exclude=True, max_length=20)]
 
 
-class SitesParameters(ParametersModel, SitesParametersQuery):
+class SitesParameters(SitesParametersQuery, ParametersModel):
     pass
 
 
-class AssociatedUsersParameters(ParametersModel,
-                                AssociatedUsersParametersQuery):
+class AssociatedUsersParameters(AssociatedUsersParametersQuery,
+                                ParametersModel):
     ids: Annotated[list[str], Field(exclude=True, max_length=100)]
     types: Annotated[
         list[Literal["main_site", "meta_site"]] | None,
-        Field(default=None),
         PlainSerializer(list_to_semicolon_delimited_str,
                         when_used="unless-none"),
-    ]
+    ] = None
     """
     Specify, semicolon delimited, main_site or meta_site to filter by site.
     """
