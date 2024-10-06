@@ -20,7 +20,7 @@ python -m datamodel_code_generator &&
 python -m ruff check &&
 python -m pylint ./src/ ./tests/ &&
 npm update pyright &&
-pyright &&
+npm exec pyright &&
 python -m pytest -vvr A --no-summary ./tests/ &&
 python -m bumpver update --patch --no-fetch &&
 ? .
