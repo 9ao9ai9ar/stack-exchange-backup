@@ -54,7 +54,7 @@ properties:
   down_vote_count:
     type: integer
   downvoted:
-    typed: boolean
+    type: boolean
     description: private_info
   is_accepted:
     type: boolean

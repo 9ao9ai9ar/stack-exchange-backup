@@ -73,7 +73,7 @@ properties:
   down_vote_count:
     type: integer
   downvoted:
-    typed: boolean
+    type: boolean
     description: private_info
   favorite_count:
     type: integer
