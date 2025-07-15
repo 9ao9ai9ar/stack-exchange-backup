@@ -1,14 +1,19 @@
+import datetime
+import re
+from typing import override
+
 from annotated_types import MaxLen
 from pydantic import (
     ConfigDict,
     PlainSerializer,
+    field_serializer,
     model_serializer,
     model_validator,
 )
 # noinspection PyProtectedMember
 from pydantic.fields import FieldInfo
 from pydantic_core.core_schema import SerializerFunctionWrapHandler
-from typing_extensions import override
+from ruamel.yaml.scalarstring import LiteralScalarString
 
 # noinspection PyUnresolvedReferences
 from stackexchange._model_base import MyBaseModel
@@ -56,6 +61,11 @@ __all__ = [
     "ReadFilterParameters",
     "SitesParameters",
     "AssociatedUsersParameters",
+    # YAML metadata models
+    "ShallowUserMetadata",
+    "CommentMetadata",
+    "AnswerMetadata",
+    "QuestionMetadata",
 ]
 
 type BuiltInFilter = Literal[
@@ -65,10 +75,10 @@ type BuiltInFilter = Literal[
     "total",
 ]
 type BakedInFilter = Literal[
-    "!6aC-iR(QLBu-5SKm",
-    "!2SUoF4c)sOul00Zq",
-    "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl",
     "!-0ttWpKaHtrB(oS",
+    "!2SUoF4c)sOul00Zq",
+    "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs",
+    "!6aC-iR(QLBu-5SKm",
 ]
 
 
@@ -165,11 +175,13 @@ class CreateFilterParameters(CreateFilterParametersQuery, ParametersModel):
     include: Annotated[
         list[str] | None,
         PlainSerializer(list_to_semicolon_delimited_str,
+                        return_type=str,
                         when_used="unless-none"),
     ] = None
     exclude: Annotated[
         list[str] | None,
         PlainSerializer(list_to_semicolon_delimited_str,
+                        return_type=str,
                         when_used="unless-none"),
     ] = None
 
@@ -188,10 +200,143 @@ class AssociatedUsersParameters(AssociatedUsersParametersQuery,
     types: Annotated[
         list[Literal["main_site", "meta_site"]] | None,
         PlainSerializer(list_to_semicolon_delimited_str,
+                        return_type=str,
                         when_used="unless-none"),
     ] = None
     """
     Specify, semicolon delimited, main_site or meta_site to filter by site.
     """
+
+
+# endregion
+
+# region YAML metadata models
+
+def epoch_time_to_date_str(s: int) -> str:
+    return (datetime.datetime
+            .fromtimestamp(s, tz=datetime.UTC)
+            .strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
+def linkify_content_license(self, content_license: str) -> str:
+    if (content_license
+            and (match := re.search(r"^CC BY-SA (\d+\.\d+)$",
+                                    content_license))):
+        cc_by_sa_version = match.group(1)
+    else:
+        # Make a best effort guess at the content licenses
+        # in case the `sort` workaround becomes ineffective.
+        # The cutoff dates and the available licenses come from
+        # https://meta.stackexchange.com/help/licensing.
+        if not (getattr(self, "creation_date", None)
+                or getattr(self, "last_edit_date", None)):
+            return "Unknown"
+        cutoff_date_1 = datetime.datetime(2011, 4, 8,
+                                          tzinfo=datetime.UTC).timestamp()
+        cutoff_date_2 = datetime.datetime(2018, 5, 2,
+                                          tzinfo=datetime.UTC).timestamp()
+        last_edit_date = self.last_edit_date or self.creation_date
+        if last_edit_date < cutoff_date_1:
+            cc_by_sa_version = "2.5"
+        elif cutoff_date_1 <= last_edit_date < cutoff_date_2:
+            cc_by_sa_version = "3.0"
+        else:
+            cc_by_sa_version = "4.0"
+        content_license = f"CC BY-SA {cc_by_sa_version}?"
+    return f"[{content_license}](https://creativecommons.org/licenses/by-sa/{cc_by_sa_version}/)"
+
+
+class ShallowUserMetadata(MyBaseModel, extra="ignore"):
+    display_name: str | None = None
+    user_type: str | None = None
+    reputation: int | None = None
+    link: str | None = None
+
+
+class CommentMetadata(MyBaseModel, extra="ignore"):
+    score: int | None = None
+    creation_date: Annotated[
+        int | None,
+        PlainSerializer(epoch_time_to_date_str,
+                        return_type=str,
+                        when_used="unless-none"),
+    ] = None
+    content_license: str | None = None
+    link: str | None = None
+    owner: ShallowUserMetadata | None = None
+    # Will run into PydanticSchemaGenerationError without the lambda.
+    # pylint: disable=unnecessary-lambda
+    body_markdown: Annotated[
+        str | None,
+        PlainSerializer(lambda s: LiteralScalarString(s),
+                        when_used="unless-none"),
+    ] = None
+
+    @field_serializer("content_license",
+                      return_type=str,
+                      when_used="always")
+    def serialize_content_license(self, content_license):
+        return linkify_content_license(self, content_license)
+
+
+class AnswerMetadata(MyBaseModel, extra="ignore"):
+    is_accepted: bool | None = None
+    awarded_bounty_amount: int | None = None
+    score: int | None = None
+    up_vote_count: int | None = None
+    down_vote_count: int | None = None
+    owner: ShallowUserMetadata | None = None
+    creation_date: Annotated[
+        int | None,
+        PlainSerializer(epoch_time_to_date_str,
+                        return_type=str,
+                        when_used="unless-none"),
+    ] = None
+    last_edit_date: Annotated[
+        int | None,
+        PlainSerializer(epoch_time_to_date_str,
+                        return_type=str,
+                        when_used="unless-none"),
+    ] = None
+    content_license: str | None = None
+    share_link: str | None = None
+    comments: list[CommentMetadata] | None = None
+
+    @field_serializer("content_license",
+                      return_type=str,
+                      when_used="always")
+    def serialize_content_license(self, content_license):
+        return linkify_content_license(self, content_license)
+
+
+class QuestionMetadata(MyBaseModel, extra="ignore"):
+    title: str | None = None
+    tags: list[str] | None = None
+    view_count: int | None = None
+    score: int | None = None
+    up_vote_count: int | None = None
+    down_vote_count: int | None = None
+    owner: ShallowUserMetadata | None = None
+    creation_date: Annotated[
+        int | None,
+        PlainSerializer(epoch_time_to_date_str,
+                        return_type=str,
+                        when_used="unless-none"),
+    ] = None
+    last_edit_date: Annotated[
+        int | None,
+        PlainSerializer(epoch_time_to_date_str,
+                        return_type=str,
+                        when_used="unless-none"),
+    ] = None
+    content_license: str | None = None
+    share_link: str | None = None
+    comments: list[CommentMetadata] | None = None
+
+    @field_serializer("content_license",
+                      return_type=str,
+                      when_used="always")
+    def serialize_content_license(self, content_license):
+        return linkify_content_license(self, content_license)
 
 # endregion

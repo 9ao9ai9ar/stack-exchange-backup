@@ -3,6 +3,20 @@
 Download all your posts on the Stack Exchange network as Markdown files
 via a Python script talking to the Stack Exchange API.
 
+> [!IMPORTANT]
+> This software is NOT an official product of, nor is it affiliated with, endorsed by, or sponsored by, 
+> Stack Exchange, Inc.
+
+> [!CAUTION]
+> Stack Exchange Backup is currently alpha-quality software.
+> It is intended as a backup tool for your own personal writings on the Stack Exchange network sites 
+> in the form of questions and answers.
+> If you plan to publish from those backup files, which likely include contributions from other people,
+> do note that the annotated attributions may be incorrect or incomplete, 
+> and you are solely responsible for the compliance with the terms of the content licenses.
+> Be sure to also read the [omissions section](#omissions) to be informed of the user contents 
+> that are excluded in the backup.
+
 ## Showcase
 
 ![Program run demo](assets/demo.avif)
@@ -57,21 +71,21 @@ Remember to activate the virtual environment first!
 
 ```console
 (.venv) $ python -m stackexchange.backup --help
-usage: backup.py [-h] --account-id ACCOUNT_ID [--no-meta] [--out-dir OUT_DIR] [--request-key REQUEST_KEY] [--rps RPS]
+usage: backup.py [-h] --account-id ACCOUNT_ID [--out-dir OUT_DIR] [--no-meta] [--request-key REQUEST_KEY] [--rps RPS]
 
 options:
   -h, --help            show this help message and exit
   --account-id ACCOUNT_ID
                         account ID
+  --out-dir OUT_DIR     output directory (default: .)
   --no-meta             do not back up meta posts
-  --out-dir OUT_DIR     output directory (default: q_and_a)
   --request-key REQUEST_KEY
                         request key
-  --rps RPS             requests per second limit (default: 20)
+  --rps RPS             requests per second limit (default: 10)
 ```
 
-* `ACCOUNT_ID`: the ID of the Stack Exchange account whose posts you want to back up.
-  Note that this is NOT the per-site user ID.
+* `ACCOUNT_ID`: the ID of the Stack Exchange network account whose posts you want to back up.
+  Note that this is different from the per-site user IDs.
   To acquire the `ACCOUNT_ID` of a user:
 
     1. Go to the user's profile page on one of the Stack Exchange network sites
@@ -88,109 +102,93 @@ options:
 * `OUT_DIR`: the folder to download your files to.
 
 * `REQUEST_KEY`: a token that grants an increased download quota.
-  We provide a default request key only for your convenience.
-  As per this [FAQ](https://stackapps.com/q/67),
-  it is advisable that users [bring their own request keys](https://stackapps.com/apps/oauth/register).
-  To access the API without a request key, assign an empty string as the value to this option.
+  A default request key is included and used automatically in the script.
+  To access the API without using a key, assign an empty string as the value to this option.
 
 * `RPS`: requests per second, a soft limit imposed on the running program.
   It is stated [in no uncertain terms](https://api.stackexchange.com/docs/throttle) that
   the Stack Exchange API considers 30+ requests per second per IP to be very abusive,
-  and will thus ban any rogue IP from making further requests to it for an indefinite period of time.
-  Due to the nature of floating-point arithmetic and the limitations of the current implementation,
-  do not assume it is an exact upper bound on the number of requests the program will make within any one-second period.
+  and will thus ban any rogue IP from making further requests to it for a period of time, typically within a few minutes.
 
 ## Output
 
-> [!WARNING]  
-> A new output layout is underway.
-> This section will be updated when the design is finalized and pushed.
-
 ### Directory Layout
 
-```console
-<OUT_DIR>
-+---<stack exchange site 1 domain name>
-|   +---answers
-|   |       <question id associated with answer 1>.md
-|   |       <question id associated with answer 2>.md
-|   |       ...
-|   |
-|   \---questions
-|           <question 1 id>.md
-|           <question 2 id>.md
-|           ...
-|
-+---<stack exchange site 2 domain name>
-|   +---answers
-|   |       <question id associated with answer 1>.md
-|   |       <question id associated with answer 2>.md
-|   |       ...
-|   |
-|   \---questions
-|           <question 1 id>.md
-|           <question 2 id>.md
-|           ...
-|
-...
+```txt
+stack_user_<ACCOUNT_ID>/
+  <SITE_1_DOMAIN_NAME>/
+    a/
+      <NOT_MY_QUESTION_1_ID>/
+        index.md
+        <MY_ANSWER_1_ID>.md
+        <OTHER_ANSWER_1_ID>.md
+        ...
+      ...
+    q/
+      <MY_QUESTION_1_ID>/
+        index.md
+        <ANSWER_1_ID>.md
+        ...
+      ...
+  ...
 ```
 
 ### File Layout
 
-```markdown
-Question downloaded from <question link>
-Question asked by <username of question creator> on <question date> at <question time>.
-Number of up votes: <number of up votes for question>
-Number of down votes: <number of down votes for question>
-Score: <overall score associated with question (number of up votes - number of down votes)>
-
-# <question title>
-
-<question body>
-
-<loop through 1 to i if there are comments to question>
-
-### Comment <i>
-
-Comment made by <username of comment i creator> on <comment i date> at <comment i time>.
-Comment score: <number of up votes for comment i>
-
-<comment i body>
-
-<loop through 1 to j if there are answers to question>
-
-## Answer <j>
-
-Answer given by <username of answer j creator> on <answer j date> at <answer j time>.
-This <is/is not> the accepted answer.
-Number of up votes: <number of up votes for answer j>
-Number of down votes: <number of down votes for answer j>
-Score: <overall score associated with answer j (number of up votes - number of down votes)>
-
-<answer j body>
-
-<loop through 1 to k if there are comments to answer j>
-
-### Comment <k>
-
-Comment made by <username of comment k creator> on <comment k date> at <comment k time>.
-Comment score: <number of up votes for comment k>
-
-<comment k body>
+```yaml
+---
+title: str # questions only
+tags: # questions only
+- str
+view_count: int # questions only
+is_accepted: bool # answers only
+awarded_bounty_amount: int # answers only
+score: int
+up_vote_count: int
+down_vote_count: int
+owner:
+  display_name: str
+  user_type: str
+  reputation: int
+  link: str
+creation_date: str
+last_edit_date: str
+content_license: str
+share_link: str
+comments:
+- score: int
+  creation_date: str
+  content_license: str
+  link: str
+  owner:
+    display_name: str
+    user_type: str
+    reputation: int
+    link: str
+  body_markdown: str
+---
+# {body_markdown}
 ```
 
 ### Omissions
 
-| Item          | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-|---------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Deleted posts | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                       |
-| Saves         | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                 |
-| Area 51 posts | [Area 51 is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                |
-| Articles      | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since release. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the `/users/{ids}/posts` endpoint after [`/articles` has been removed from the API](https://stackapps.com/a/10466). |
+| Items                                 | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+|---------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deleted posts                         | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                            |
+| (Some) migrated posts                 | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. For additional information, see *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*.                                                                                                                                                                                                                                         |
+| (Some) community wiki posts           | The API does not seem to provide the means to collect community wikis of which a user is a co-author but not the original poster. The authorship of community wikis is also difficult to programmatically determine and be given proper attribution. For additional information, see *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*.                                                                                                                                                            |
+| Answers to one's own merged questions | This is a rare occurrence, and including answers to the merge targets may be confusing as they may quote from the target questions and have accepted answers that the owner of the merged questions might not agree with. For additional information, see *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*.                                                                                                                                                                                          |
+| Area 51 posts                         | [Area 51 is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Articles                              | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since release. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
+| Saves                                 | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                      |
 
 ## Related Projects
 
 ### [Stack Exchange API](https://api.stackexchange.com/)
+
+As one of the three official gateways to the public data on the Stack Exchange network,
+the API is the most conducive to application development, but is also mired in bugs and limitations,
+so it'd be a good idea to cross-check or complement the API data with data obtained through other means.
 
 #### [mhdadk/stack-exchange-backup](https://github.com/mhdadk/stack-exchange-backup)
 
@@ -202,10 +200,8 @@ some insufficiently explained, and the numerous bugs scattered all over the plac
 
 #### [StackExchangeBackupLaravel](https://github.com/ryancwalsh/StackExchangeBackupLaravelPHP)
 
-StackExchangeBackupLaravel allows exporting a somewhat complete data footprint of a user on the Stack Exchange network,
-but the output files are in JSON rather than Markdown, which are also zipped and uploaded to Amazon S3 by default.
-By contrast, Stack Exchange Backup is simple and straightforward:
-everything is downloaded to the local machine only, and installation is easier and documentation more thorough.
+StackExchangeBackupLaravel allows exporting a somewhat complete data footprint of a user on the Stack Exchange network.
+The user contents are transcoded to JSON from their original Markdown format and uploaded to Amazon S3 by default.
 
 ### [Stack Exchange Data Explorer](https://data.stackexchange.com/)
 
@@ -213,20 +209,18 @@ The Stack Exchange Data Explorer (SEDE) is an open source tool
 for running arbitrary queries against public data from the Stack Exchange network.
 There are ready-made queries to export your data to a
 [single HTML file](https://data.stackexchange.com/meta.stackexchange/query/758326)
-or a [CSV file](https://data.stackexchange.com/meta.stackexchange/query/1529864).
-Unfortunately, they are not the one-stop solution to output individual Markdown files as they were originally authored.
-Moreover, to use the SEDE service, you'd either have to log in or solve some CAPTCHAs first,
-and the data is only [refreshed weekly](https://data.stackexchange.com/help#faq),
-as opposed to the data returned by the API, which is [refreshed about once a minute](https://stackapps.com/a/3544).
+or [CSV file](https://data.stackexchange.com/meta.stackexchange/query/1529864),
+but those data are only [refreshed weekly](https://data.stackexchange.com/help#faq),
+as opposed to the data returned by the API, which are [refreshed about once a minute](https://stackapps.com/q/3543).
 
 #### [Pippim Website](https://www.pippim.com/programs/stack.html)
 
-This is a demo website that comes with a set of procedures and programs to help
+A demo website that comes with a set of procedures and programs to help
 convert your Stack Exchange posts into a fancy GitHub Pages website.
 
 ### [Stack Exchange Data Dump](https://stackoverflow.com/help/data-dumps)
 
-This is a quarterly dump of all user-contributed data on the Stack Exchange network.
+The quarterly dump of all user-contributed data on the Stack Exchange network.
 In an [announcement](https://meta.stackexchange.com/q/401324) made in July 2024,
 the data dumps will no longer be uploaded to the [Internet Archive](https://archive.org/details/stackexchange);
 instead, they will be provided from a section in the site user profile settings.
@@ -244,9 +238,9 @@ Thankfully, this project exists to address some of the above pain points.
 
 ## Development
 
-My personal development process for this project is encoded in `release.ps1`,
-a polyglot script that is valid in both the Bourne shell and PowerShell.
-In addition to the dependencies specified in `pyproject.toml`, the script relies on the following utilities:
+My personal development process for this project is encoded in [`release.ps1`](./release.ps1),
+a polyglot script that is valid in both the POSIX shell and PowerShell.
+In addition to the dependencies specified in [`pyproject.toml`](./pyproject.toml), the script relies on the following utilities:
 
 * [uv](https://github.com/astral-sh/uv)
 * [security-constraints](https://github.com/mam-dev/security-constraints)
@@ -257,16 +251,16 @@ which need to be installed and configured separately as instructed in the commen
 To help you in your experimentation with the Stack Exchange API through the documentation web pages,
 I have compiled a list of the parameter types and their associated icons as follows:
 
-* ![string-type](https://cdn.sstatic.net/apiv2/img/text.png): Strings
-* ![number-type](https://cdn.sstatic.net/apiv2/img/number.png):
+* ![string-type](https://cdn.sstatic.net/apiv2/img/text.png) Strings
+* ![number-type](https://cdn.sstatic.net/apiv2/img/number.png)
   [Numbers](https://api.stackexchange.com/docs/numbers)
-* ![date-type](https://cdn.sstatic.net/apiv2/img/calendar.png):
+* ![date-type](https://cdn.sstatic.net/apiv2/img/calendar.png)
   [Dates](https://api.stackexchange.com/docs/dates)
-* ![list-type](https://cdn.sstatic.net/apiv2/img/list.png):
+* ![list-type](https://cdn.sstatic.net/apiv2/img/list.png)
   [Lists](https://api.stackexchange.com/docs/vectors)
-* ![key-type](https://cdn.sstatic.net/apiv2/img/key.png):
+* ![key-type](https://cdn.sstatic.net/apiv2/img/key.png)
   [Keys](https://api.stackexchange.com/docs/authentication)
-* ![access-token-type](https://cdn.sstatic.net/apiv2/img/access-token.png):
+* ![access-token-type](https://cdn.sstatic.net/apiv2/img/access-token.png)
   [Access Tokens](https://api.stackexchange.com/docs/authentication)
 
 Except for numbers and dates, the icons are not explained anywhere in the documentation,
@@ -284,7 +278,6 @@ If you are a Windows or macOS user, do note that official binaries are not provi
 Thereby, I encourage you to instead install it through one of the following channels
 to benefit from the continuing security fixes:
 
-* [Miniconda](https://docs.anaconda.com/miniconda/)
-* [Miniforge](https://github.com/conda-forge/miniforge)
-* [Micromamba](https://github.com/mamba-org/mamba#micromamba)
-* [Pixi](https://github.com/prefix-dev/pixi)
+* [Miniconda](https://www.anaconda.com/download/)
+* [Miniforge](https://github.com/conda-forge/miniforge/releases)
+* [Pixi](https://github.com/prefix-dev/pixi/releases)

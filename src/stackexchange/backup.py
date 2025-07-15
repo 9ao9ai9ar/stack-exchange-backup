@@ -1,10 +1,10 @@
 import argparse
-import datetime
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
+from typing import Literal, cast
 
-from typing_extensions import Literal, TextIO, cast
+from ruamel.yaml import YAML
 
 from stackexchange.api import StackExchangeApi
 from stackexchange.model_extend import *
@@ -15,14 +15,12 @@ __all__ = [
     "acquire_missing_network_users",
     "backup_questions",
     "backup_answers",
+    "get_post_dir",
     "create_markdown_file",
-    "create_backup_path",
-    "write_question_section",
-    "write_answer_sections",
-    "write_comment_sections",
 ]
+
 _api = StackExchangeApi()
-MD_DATETIME_FORMAT = "%Y-%m-%d at %H:%M:%S UTC"
+yaml = YAML(pure=True)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -33,7 +31,10 @@ class NetworkUserSlim:
 
 def main() -> None:
     args = prepare_argument_parser().parse_args()
-    backup_root = Path(args.out_dir).resolve()
+    if args.out_dir is None:
+        args.out_dir = "."
+    backup_root = (Path(args.out_dir, f"stack_user_{args.account_id}")
+                   .resolve())
     backup_root.mkdir(exist_ok=True)
     global _api  # pylint: disable=global-statement
     _api = StackExchangeApi(request_key=args.request_key, rps=args.rps)
@@ -53,7 +54,7 @@ def main() -> None:
               + f"({network_user.site_domain_name})...",
               end="",
               flush=True)
-        backup_answers(args.account_id, network_user, backup_root)
+        backup_answers(network_user, backup_root)
         print("Done.")
 
 
@@ -66,15 +67,15 @@ def prepare_argument_parser() -> argparse.ArgumentParser:
         help="account ID",
     )
     parser.add_argument(
+        "--out-dir",
+        default=".",
+        type=str,
+        help="output directory (default: %(default)s)",
+    )
+    parser.add_argument(
         "--no-meta",
         action="store_true",
         help="do not back up meta posts",
-    )
-    parser.add_argument(
-        "--out-dir",
-        default="q_and_a",
-        type=str,
-        help="output directory (default: %(default)s)",
     )
     parser.add_argument(
         "--request-key",
@@ -84,7 +85,7 @@ def prepare_argument_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--rps",
-        default=20,
+        default=10,
         type=int,
         help="requests per second limit (default: %(default)d)",
     )
@@ -159,34 +160,41 @@ def acquire_missing_network_users(main_site_users: list[NetworkUserSlim]) \
                     )
 
 
-def backup_questions(network_user: NetworkUserSlim, backup_root: Path) -> None:
+def backup_questions(network_user: NetworkUserSlim,
+                     backup_root: str | PathLike[str]) -> None:
     """
 
     :param network_user:
     :param backup_root:
     :return:
     """
-    f: BakedInFilter = "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl"  # noqa
+    f: BakedInFilter = "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs"  # noqa pylint: disable=line-too-long
+    # The `sort` request parameter is added just to get around a bug of
+    # a missing question.content_license when answers or comments are present.
     questions = _api.questions_on_users(
         QuestionsOnUsersParameters(
             ids=cast(list[str], [network_user.user_id]),
+            complex=Complex(sort="activity"),
             site=network_user.site_domain_name,
             filter=f,
         )
     )
     for question in questions:
-        create_markdown_file(question,
+        create_markdown_file(network_user,
+                             question,
                              backup_root,
-                             network_user.site_domain_name,
-                             "questions")
+                             "q")
+        for answer in question.answers or []:
+            create_markdown_file(network_user,
+                                 answer,
+                                 backup_root,
+                                 "q")
 
 
-def backup_answers(account_id: int,
-                   network_user: NetworkUserSlim,
-                   backup_root: Path) -> None:
+def backup_answers(network_user: NetworkUserSlim,
+                   backup_root: str | PathLike[str]) -> None:
     """
 
-    :param account_id:
     :param network_user:
     :param backup_root:
     :return:
@@ -198,133 +206,95 @@ def backup_answers(account_id: int,
             filter="!6aC-iR(QLBu-5SKm",
         )
     )
-    f: BakedInFilter = "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl"  # noqa
+    f: BakedInFilter = "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs"  # noqa pylint: disable=line-too-long
+    # The `sort` request parameter is added just to get around a bug of
+    # a missing question.content_license when answers or comments are present.
     questions = _api.questions_by_ids(
         QuestionsByIdsParameters(
             ids=cast(list[str],
-                     [answer.question_id for answer in answers]),
+                     [answer.question_id for answer in answers
+                      if not get_post_dir(network_user,
+                                          answer,
+                                          backup_root,
+                                          "q")
+                     .exists()]),
+            complex=Complex(sort="activity"),
             site=network_user.site_domain_name,
             filter=f,
         )
     )
     for question in questions:
-        if not question.owner or question.owner.account_id != account_id:
-            create_markdown_file(question,
+        create_markdown_file(network_user,
+                             question,
+                             backup_root,
+                             "a")
+        for answer in question.answers or []:
+            create_markdown_file(network_user,
+                                 answer,
                                  backup_root,
-                                 network_user.site_domain_name,
-                                 "answers")
+                                 "a")
 
 
-def create_markdown_file(question: Question,
+def get_post_dir(network_user: NetworkUserSlim,
+                 post: Question | Answer,
+                 backup_root: str | PathLike[str],
+                 contribution_type: Literal["a", "q"]) -> Path:
+    """
+
+    :param network_user:
+    :param post:
+    :param backup_root:
+    :param contribution_type:
+    :return:
+    """
+    post_dir = (Path(backup_root,
+                     network_user.site_domain_name,
+                     contribution_type,
+                     str(post.question_id))
+                .resolve())
+    post_dir.relative_to(backup_root)
+    return post_dir
+
+
+def create_markdown_file(network_user: NetworkUserSlim,
+                         post: Question | Answer,
                          backup_root: str | PathLike[str],
-                         *child_paths: str | PathLike[str]) -> None:
+                         contribution_type: Literal["a", "q"]) -> None:
     """
 
-    :param question:
+    :param network_user:
+    :param post:
     :param backup_root:
-    :param child_paths:
+    :param contribution_type:
     :return:
     """
-    md_file = (create_backup_path(backup_root,
-                                  *child_paths,
-                                  str(question.question_id))
-               .with_suffix(".md"))
-    # If the file already exists, then skip it to save time.
-    if md_file.exists():
-        return
-    with md_file.open(mode="w", encoding="utf-8") as f:
-        write_question_section(f, question)
-        write_answer_sections(f, question.answers or [])
-
-
-def create_backup_path(backup_root: str | PathLike[str],
-                       *child_paths: str | PathLike[str]) -> Path:
-    """
-
-    :param backup_root:
-    :param child_paths:
-    :return:
-    """
-    backup_subfolder = Path(backup_root, *child_paths).resolve()
-    backup_subfolder.relative_to(backup_root)
-    backup_subfolder.parent.mkdir(parents=True, exist_ok=True)
-    return backup_subfolder
-
-
-def write_question_section(f: TextIO, question: Question) -> None:
-    """
-
-    :param f:
-    :param question:
-    :return:
-    """
-    f.write(f"Question downloaded from {question.link} \\\n")
-    question_creation_date = datetime.datetime.fromtimestamp(
-        question.creation_date or 0,
-        tz=datetime.UTC
-    ).strftime(MD_DATETIME_FORMAT)
-    if question.owner and question.owner.display_name:
-        f.write(f"Question asked by {question.owner.display_name} on "
-                + f"{question_creation_date}.\\\n")
+    if isinstance(post, Question):
+        md_name = "index"
+    elif isinstance(post, Answer):
+        md_name = str(post.answer_id)
     else:
-        f.write(f"Question asked on {question_creation_date}.\\\n")
-    f.write(f"Number of up votes: {question.up_vote_count}\\\n")
-    f.write(f"Number of down votes: {question.down_vote_count}\\\n")
-    f.write(f"Score: {question.score}\n\n")
-    f.write(f"# {question.title}\n")
-    f.write(f"{question.body_markdown}\n")
-    write_comment_sections(f, question.comments or [])
-
-
-def write_answer_sections(f: TextIO, answers: list[Answer]) -> None:
-    """
-
-    :param f:
-    :param answers:
-    :return:
-    """
-    for i, answer in enumerate(answers, start=1):
-        f.write(f"## Answer {i}\n")
-        answer_creation_date = datetime.datetime.fromtimestamp(
-            answer.creation_date or 0,
-            tz=datetime.UTC
-        ).strftime(MD_DATETIME_FORMAT)
-        if answer.owner and answer.owner.display_name:
-            f.write(f"Answer given by {answer.owner.display_name} on "
-                    + f"{answer_creation_date}.\\\n")
+        raise TypeError("post must be either an Answer or a Question")
+    post_dir = get_post_dir(network_user, post, backup_root, contribution_type)
+    md_file = Path(post_dir, md_name).with_suffix(".md")
+    md_file.parent.mkdir(parents=True, exist_ok=True)
+    with md_file.open(mode="w", encoding="utf-8", newline="") as f:
+        if isinstance(post, Question):
+            frontmatter = (QuestionMetadata
+                           .model_validate(post.model_dump())
+                           .model_dump())
         else:
-            f.write(f"Answer given on {answer_creation_date}.\\\n")
-        if answer.is_accepted:
-            f.write("This is the accepted answer.\\\n")
-        else:
-            f.write("This is not the accepted answer.\\\n")
-        f.write(f"Number of up votes: {answer.up_vote_count}\\\n")
-        f.write(f"Number of down votes: {answer.down_vote_count}\\\n")
-        f.write(f"Score: {answer.score}\n\n")
-        f.write(f"{answer.body_markdown}\n")
-        write_comment_sections(f, answer.comments or [])
-
-
-def write_comment_sections(f: TextIO, comments: list[Comment]) -> None:
-    """
-
-    :param f:
-    :param comments:
-    :return:
-    """
-    for i, comment in enumerate(comments, start=1):
-        f.write(f"### Comment {i}\n")
-        comment_creation_date = datetime.datetime.fromtimestamp(
-            comment.creation_date or 0,
-            tz=datetime.UTC
-        ).strftime(MD_DATETIME_FORMAT)
-        if comment.owner and comment.owner.display_name:
-            f.write(f"Comment made by {comment.owner.display_name} on "
-                    + f"{comment_creation_date}.\\\n")
-        else:
-            f.write(f"Comment made on {comment_creation_date}.\\\n")
-        f.write(f"Comment score: {comment.score}\n\n")
-        f.write(f"{comment.body_markdown}\n")
+            frontmatter = (AnswerMetadata
+                           .model_validate(post.model_dump())
+                           .model_dump())
+        if frontmatter:
+            global yaml  # pylint: disable=global-statement
+            try:
+                yaml.dump(frontmatter, f, transform=lambda s: f"---\n{s}---\n")
+            except:  # noqa pylint: disable=bare-except
+                # https://yaml.dev/doc/ruamel.yaml/api/#top
+                yaml = YAML(pure=True)
+        if post.body_markdown:
+            f.write(post.body_markdown)
 
 
 if __name__ == "__main__":

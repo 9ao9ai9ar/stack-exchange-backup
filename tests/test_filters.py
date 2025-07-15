@@ -1,5 +1,6 @@
+import typing
+
 import pytest
-import typing_extensions
 
 from stackexchange.api import StackExchangeApi
 from stackexchange.model_extend import (
@@ -12,8 +13,8 @@ from stackexchange.model_extend import (
 @pytest.fixture(scope="module")
 def defined_filters():
     api = StackExchangeApi()
-    # pylint: disable-next=no-member
-    baked_in_filters = typing_extensions.get_args(BakedInFilter.__value__)
+    # pylint: disable=no-member
+    baked_in_filters = typing.get_args(BakedInFilter.__value__)
     return list(
         api.read_filter(ReadFilterParameters(filters=list(baked_in_filters)))
     )
@@ -57,39 +58,58 @@ def expected_filters():
                 # we must also include comment.body in the filter
                 # in order to get comment.body_markdown in the response.
                 (
-                    "6(KgqfEH*wW4Tq__Mn5VGrYXj.xyYJVGEUYpTK4QOaCv8RzhI5qMv6X38J1znyl",
+                    # noqa pylint: disable=line-too-long
+                    "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs",
                     "unsafe",
                     sorted([
                         ".backoff",
                         ".has_more",
                         ".items",
                         ".quota_remaining",
+                        "answer.answer_id",
+                        "answer.awarded_bounty_amount",
                         "answer.body_markdown",
                         "answer.comments",
+                        "answer.content_license",
                         "answer.creation_date",
                         "answer.down_vote_count",
                         "answer.is_accepted",
+                        "answer.last_edit_date",
                         "answer.owner",
+                        "answer.question_id",
                         "answer.score",
+                        "answer.share_link",
                         "answer.up_vote_count",
                         "comment.body",
                         "comment.body_markdown",
+                        "comment.content_license",
                         "comment.creation_date",
+                        "comment.link",
                         "comment.owner",
                         "comment.score",
+                        "migration_info.other_site",
+                        "migration_info.question_id",
                         "question.answers",
                         "question.body_markdown",
                         "question.comments",
+                        "question.content_license",
                         "question.creation_date",
                         "question.down_vote_count",
-                        "question.link",
+                        "question.last_edit_date",
+                        "question.migrated_from",
+                        "question.migrated_to",
                         "question.owner",
                         "question.question_id",
                         "question.score",
+                        "question.share_link",
+                        "question.tags",
                         "question.title",
                         "question.up_vote_count",
-                        "shallow_user.account_id",
+                        "question.view_count",
                         "shallow_user.display_name",
+                        "shallow_user.link",
+                        "shallow_user.reputation",
+                        "shallow_user.user_type",
                     ]),
                 ),
                 (
