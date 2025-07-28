@@ -4,37 +4,38 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2025.07.15"
+version = "2025.07.28"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
-readme = "README.md"
+readme = "./README.md"
 requires-python = ">= 3.12"
+license = "MIT"
+license-files = ["./LICENSE"]
 authors = [{ name = "Wei Cheng", email = "weicheng018@gmail.com" }]
 keywords = ["Stack Exchange"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-#    "Development Status :: 4 - Beta",
-#    "Development Status :: 5 - Production/Stable",
+    #    "Development Status :: 4 - Beta",
+    #    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
-#    "Operating System :: MacOS :: MacOS X",
+    #    "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
-#    "Operating System :: POSIX :: BSD",
-#    "Operating System :: POSIX :: SunOS/Solaris",
+    #    "Operating System :: POSIX :: BSD",
+    #    "Operating System :: POSIX :: SunOS/Solaris",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-#    "Programming Language :: Python :: 3.14",
-#    "Programming Language :: Python :: 3.15",
+    #    "Programming Language :: Python :: 3.14",
+    #    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
-#    "Programming Language :: Python :: Implementation :: GraalPy",
-#    "Programming Language :: Python :: Implementation :: PyPy",
+    #    "Programming Language :: Python :: Implementation :: GraalPy",
+    #    "Programming Language :: Python :: Implementation :: PyPy",
     "Topic :: System :: Archiving :: Backup",
 ]
-urls.Source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
+urls.source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
     "niquests[speedups] >= 3.5.0, < 4",
     "pydantic >= 2.8.0, < 3",
@@ -58,6 +59,7 @@ uat = [
 ]
 prod = [
     "bumpver",
+    "validate-pyproject[all]",
 ]
 all = [
     { include-group = "dev" },
@@ -67,7 +69,7 @@ all = [
 ]
 
 [tool.bumpver]
-current_version = "2025.07.15"
+current_version = "2025.07.28"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
@@ -81,6 +83,8 @@ commit = false
 input = "./resources/openapi/openapi.yaml"
 input-file-type = "openapi"
 output = "./src/stackexchange/generated/_model_openapi.py"
+#output-model-type = "dataclasses.dataclass"
+#output-model-type = "msgspec.Struct"
 output-model-type = "pydantic_v2.BaseModel"
 ## Typing customization:
 base-class = "stackexchange._model_base.MyBaseModel"
@@ -94,6 +98,7 @@ use-default-kwarg = true
 use-field-description = true
 ## Model customization:
 collapse-root-models = true
+#dataclass-arguments = {"frozen" = true, "kw_only" = true, "slots" = true}
 disable-timestamp = true
 enable-version-header = true
 keep-model-order = true
@@ -103,6 +108,7 @@ use-schema-description = true
 ## Template customization:
 use-double-quotes = true
 ## OpenAPI-only options:
+#include-path-parameters = true
 openapi-scopes = [
     "schemas",
     "parameters",
@@ -141,15 +147,22 @@ exclude = [
     "**/.*",
     "**/generated",
 ]
-typeCheckingMode = "basic"
+typeCheckingMode = "strict"
 deprecateTypingAliases = true
-reportArgumentType = "warning"
-reportAttributeAccessIssue = "warning"
-reportGeneralTypeIssues = "warning"
-reportUndefinedVariable = "warning"
+reportUnnecessaryTypeIgnoreComment = true
+# "error" in "standard" mode
+reportIncompatibleVariableOverride = "information" # https://github.com/microsoft/pyright/issues/7840 and PEP 767
+# "error" in "strict" mode
+reportUnknownParameterType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportMissingParameterType = false
+reportMissingTypeArgument = false
 
 [tool.pytest.ini_options]
-addopts = "-vvr A --no-summary"
+addopts = "-vr a --tb=short"
 testpaths = ["./tests"]
 xfail_strict = true
 

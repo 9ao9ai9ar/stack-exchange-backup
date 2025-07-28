@@ -19,10 +19,10 @@
 uv self update &&
 uv tool update security-constraints &&
 npm update pyright &&
-security-constraints --min-severity moderate --output ./constraints.txt &&
+uv tool run security-constraints --min-severity moderate --output ./constraints.txt &&
 uv pip compile --constraints ./constraints.txt --output-file ./requirements.txt ./pyproject.toml &&
 uv pip sync ./requirements.txt &&
-uv pip install --constraints ./constraints.txt --constraints ./requirements.txt --group all --editable . &&
+uv pip install --editable . --constraints ./constraints.txt --constraints ./requirements.txt --group all &&
 
 python -m openapi_spec_validator --errors all ./resources/openapi/openapi.yaml &&
 python -m datamodel_code_generator &&
@@ -38,5 +38,6 @@ python -m mprof peak &&
 python -m mprof clean &&
 
 python -m bumpver update --patch --no-fetch &&
+python -m validate_pyproject ./pyproject.toml
 
 $(exit)

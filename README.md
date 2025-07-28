@@ -3,7 +3,7 @@
 Download all your posts on the Stack Exchange network as Markdown files
 via a Python script talking to the Stack Exchange API.
 
-> [!IMPORTANT]
+> [!NOTE]
 > This software is NOT an official product of, nor is it affiliated with, endorsed by, or sponsored by, 
 > Stack Exchange, Inc.
 
@@ -71,17 +71,18 @@ Remember to activate the virtual environment first!
 
 ```console
 (.venv) $ python -m stackexchange.backup --help
-usage: backup.py [-h] --account-id ACCOUNT_ID [--out-dir OUT_DIR] [--no-meta] [--request-key REQUEST_KEY] [--rps RPS]
+usage: backup.py [-h] --account-id ACCOUNT_ID [--out-dir OUT_DIR] [--no-meta] [--api-key API_KEY]
+                 [--limit-rate LIMIT_RATE]
 
 options:
   -h, --help            show this help message and exit
   --account-id ACCOUNT_ID
                         account ID
   --out-dir OUT_DIR     output directory (default: .)
-  --no-meta             do not back up meta posts
-  --request-key REQUEST_KEY
-                        request key
-  --rps RPS             requests per second limit (default: 10)
+  --no-meta             do not back up posts on meta sites
+  --api-key API_KEY     API key
+  --limit-rate LIMIT_RATE
+                        Maximum request rate in requests per second (default: 10)
 ```
 
 * `ACCOUNT_ID`: the ID of the Stack Exchange network account whose posts you want to back up.
@@ -101,11 +102,11 @@ options:
 
 * `OUT_DIR`: the folder to download your files to.
 
-* `REQUEST_KEY`: a token that grants an increased download quota.
-  A default request key is included and used automatically in the script.
+* `API_KEY`: a token that grants an increased download quota.
+  A default API key is included and used automatically in the script.
   To access the API without using a key, assign an empty string as the value to this option.
 
-* `RPS`: requests per second, a soft limit imposed on the running program.
+* `LIMIT_RATE`: a soft limit imposed on the running program.
   It is stated [in no uncertain terms](https://api.stackexchange.com/docs/throttle) that
   the Stack Exchange API considers 30+ requests per second per IP to be very abusive,
   and will thus ban any rogue IP from making further requests to it for a period of time, typically within a few minutes.
@@ -153,6 +154,7 @@ owner:
   link: str
 creation_date: str
 last_edit_date: str
+community_owned_date: str
 content_license: str
 share_link: str
 comments:

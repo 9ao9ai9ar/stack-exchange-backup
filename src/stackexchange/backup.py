@@ -1,4 +1,8 @@
-import argparse
+from argparse import (
+    ArgumentParser,
+    ArgumentTypeError,
+    Namespace,
+)
 from dataclasses import dataclass
 from os import PathLike
 from pathlib import Path
@@ -23,21 +27,18 @@ _api = StackExchangeApi()
 yaml = YAML(pure=True)
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class NetworkUserSlim:
     site_domain_name: str
     user_id: int
 
 
 def main() -> None:
-    args = prepare_argument_parser().parse_args()
-    if args.out_dir is None:
-        args.out_dir = "."
-    backup_root = (Path(args.out_dir, f"stack_user_{args.account_id}")
-                   .resolve())
+    args = parse_arguments()
+    backup_root = Path(args.out_dir, f"stack_user_{args.account_id}").resolve()
     backup_root.mkdir(exist_ok=True)
     global _api  # pylint: disable=global-statement
-    _api = StackExchangeApi(request_key=args.request_key, rps=args.rps)
+    _api = StackExchangeApi(api_key=args.api_key, limit_rate=args.limit_rate)
     network_users = get_network_users(args.account_id, args.no_meta)
     print(f"Found {len(network_users)} Stack Exchange sites associated with "
           + f"https://stackexchange.com/users/{args.account_id}/")
@@ -58,8 +59,8 @@ def main() -> None:
         print("Done.")
 
 
-def prepare_argument_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+def parse_arguments() -> Namespace:
+    parser = ArgumentParser()
     parser.add_argument(
         "--account-id",
         type=int,
@@ -75,24 +76,31 @@ def prepare_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--no-meta",
         action="store_true",
-        help="do not back up meta posts",
+        help="do not back up posts on meta sites",
     )
     parser.add_argument(
-        "--request-key",
+        "--api-key",
         default=StackExchangeApi.API_KEY,
         type=str,
-        help="request key",
+        help="API key",
     )
     parser.add_argument(
-        "--rps",
+        "--limit-rate",
         default=10,
         type=int,
-        help="requests per second limit (default: %(default)d)",
+        help="Maximum request rate in requests per second (default: %(default)d)",
     )
-    return parser
+    args = parser.parse_args()
+    validate_parsed_arguments(args)
+    return args
 
 
-def get_network_users(account_id: int, no_meta: bool) -> list[NetworkUserSlim]:
+def validate_parsed_arguments(args: Namespace) -> None:
+    if not 0 < args.limit_rate <= StackExchangeApi.MAX_REQUESTS_PER_SECOND:
+        raise ArgumentTypeError(f"invalid int value: '{args.limit_rate}'")
+
+
+def get_network_users(account_id: int, no_meta: bool) -> set[NetworkUserSlim]:
     """
 
     :param account_id:
@@ -101,47 +109,40 @@ def get_network_users(account_id: int, no_meta: bool) -> list[NetworkUserSlim]:
     """
     associated_users = _api.associated_users(
         AssociatedUsersParameters(
-            ids=cast(list[str], [account_id]),
+            ids=[account_id],
             filter="!2SUoF4c)sOul00Zq",
             types=cast(list[Literal["main_site", "meta_site"]],
                        ["main_site"] if no_meta
                        else ["main_site", "meta_site"]),
         )
     )
-    network_users = list[NetworkUserSlim](
-        filter(
-            None,
-            (
-                NetworkUserSlim(
-                    site_domain_name=associated_user.site_url.host,
-                    user_id=associated_user.user_id,
-                )
-                if associated_user.user_id
-                   and associated_user.site_url
-                   and associated_user.site_url.host
-                   and (associated_user.site_url.host
-                        != "meta.stackexchange.com" or not no_meta)
-                else None
-                for associated_user in associated_users or []
-            )
+    network_users = set[NetworkUserSlim](
+        NetworkUserSlim(
+            site_domain_name=associated_user.site_url.host,
+            user_id=associated_user.user_id,
         )
+        for associated_user in associated_users
+        if associated_user.user_id
+        and associated_user.site_url
+        and associated_user.site_url.host
+        and (not no_meta or associated_user.site_url.host not in
+             ("meta.stackexchange.com", "stackapps.com"))
     )
     if not no_meta:
         acquire_missing_network_users(network_users)
     return network_users
 
 
-def acquire_missing_network_users(main_site_users: list[NetworkUserSlim]) \
-        -> None:
+def acquire_missing_network_users(network_users: set[NetworkUserSlim]) -> None:
     """
     Apply fix for :meth:`StackExchangeApi.associated_users` not
     returning results for meta sites.
 
-    :param main_site_users:
+    :param network_users:
     :return:
     """
     users_dict = {user.site_domain_name: user.user_id
-                  for user in main_site_users}
+                  for user in network_users}
     for site in _api.sites(SitesParameters()):
         if (site.site_type == "main_site"
                 and site.site_url
@@ -149,10 +150,8 @@ def acquire_missing_network_users(main_site_users: list[NetworkUserSlim]) \
             for related_site in site.related_sites or []:
                 if (related_site.relation == "meta"
                         and related_site.site_url
-                        and related_site.site_url.host
-                        # In case the bug gets fixed.
-                        and related_site.site_url.host not in users_dict):
-                    main_site_users.append(
+                        and related_site.site_url.host):
+                    network_users.add(
                         NetworkUserSlim(
                             site_domain_name=related_site.site_url.host,
                             user_id=users_dict[site.site_url.host],
@@ -168,27 +167,18 @@ def backup_questions(network_user: NetworkUserSlim,
     :param backup_root:
     :return:
     """
-    f: BakedInFilter = "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs"  # noqa pylint: disable=line-too-long
-    # The `sort` request parameter is added just to get around a bug of
-    # a missing question.content_license when answers or comments are present.
+    f = "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB"
     questions = _api.questions_on_users(
         QuestionsOnUsersParameters(
-            ids=cast(list[str], [network_user.user_id]),
-            complex=Complex(sort="activity"),
+            ids=[network_user.user_id],
             site=network_user.site_domain_name,
             filter=f,
         )
     )
     for question in questions:
-        create_markdown_file(network_user,
-                             question,
-                             backup_root,
-                             "q")
+        create_markdown_file(network_user, question, backup_root, "q")
         for answer in question.answers or []:
-            create_markdown_file(network_user,
-                                 answer,
-                                 backup_root,
-                                 "q")
+            create_markdown_file(network_user, answer, backup_root, "q")
 
 
 def backup_answers(network_user: NetworkUserSlim,
@@ -201,38 +191,32 @@ def backup_answers(network_user: NetworkUserSlim,
     """
     answers = _api.answers_on_users(
         AnswersOnUsersParameters(
-            ids=cast(list[str], [network_user.user_id]),
+            ids=[network_user.user_id],
             site=network_user.site_domain_name,
             filter="!6aC-iR(QLBu-5SKm",
         )
     )
-    f: BakedInFilter = "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs"  # noqa pylint: disable=line-too-long
-    # The `sort` request parameter is added just to get around a bug of
-    # a missing question.content_license when answers or comments are present.
+    not_my_question_ids = [
+        answer.question_id
+        for answer in answers
+        if answer.question_id is not None
+           and not (get_post_dir(network_user, answer, backup_root, "q")
+                    .exists())
+    ]
+    if not not_my_question_ids:
+        return
+    f = "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB"
     questions = _api.questions_by_ids(
         QuestionsByIdsParameters(
-            ids=cast(list[str],
-                     [answer.question_id for answer in answers
-                      if not get_post_dir(network_user,
-                                          answer,
-                                          backup_root,
-                                          "q")
-                     .exists()]),
-            complex=Complex(sort="activity"),
+            ids=not_my_question_ids,
             site=network_user.site_domain_name,
             filter=f,
         )
     )
     for question in questions:
-        create_markdown_file(network_user,
-                             question,
-                             backup_root,
-                             "a")
+        create_markdown_file(network_user, question, backup_root, "a")
         for answer in question.answers or []:
-            create_markdown_file(network_user,
-                                 answer,
-                                 backup_root,
-                                 "a")
+            create_markdown_file(network_user, answer, backup_root, "a")
 
 
 def get_post_dir(network_user: NetworkUserSlim,
@@ -268,12 +252,7 @@ def create_markdown_file(network_user: NetworkUserSlim,
     :param contribution_type:
     :return:
     """
-    if isinstance(post, Question):
-        md_name = "index"
-    elif isinstance(post, Answer):
-        md_name = str(post.answer_id)
-    else:
-        raise TypeError("post must be either an Answer or a Question")
+    md_name = "index" if isinstance(post, Question) else str(post.answer_id)
     post_dir = get_post_dir(network_user, post, backup_root, contribution_type)
     md_file = Path(post_dir, md_name).with_suffix(".md")
     md_file.parent.mkdir(parents=True, exist_ok=True)

@@ -9,19 +9,28 @@ from stackexchange.model_extend import (
     ReadFilterParameters,
 )
 
+type FilterType = typing.Literal["safe", "unsafe", "invalid"]
+
 
 @pytest.fixture(scope="module")
 def defined_filters():
     api = StackExchangeApi()
+    # https://github.com/pylint-dev/pylint/issues/9885
     # pylint: disable=no-member
     baked_in_filters = typing.get_args(BakedInFilter.__value__)
     return list(
-        api.read_filter(ReadFilterParameters(filters=list(baked_in_filters)))
+        api.read_filter(ReadFilterParameters(filters=sorted(baked_in_filters)))
     )
 
 
 @pytest.fixture(scope="module")
 def expected_filters():
+    def is_filter_type(filter_type: str) -> typing.TypeIs[FilterType]:
+        # https://github.com/pylint-dev/pylint/issues/9885
+        # pylint: disable=no-member
+        assert filter_type in typing.get_args(FilterType.__value__)
+        return True
+
     return [
         Filter(
             filter=filter_,
@@ -58,8 +67,8 @@ def expected_filters():
                 # we must also include comment.body in the filter
                 # in order to get comment.body_markdown in the response.
                 (
-                    # noqa pylint: disable=line-too-long
-                    "7I-hxO428Vv_b5(ED5z6tCN8LC(R5KOA9xhp7eq*O7EcRIX5*V3bK0VdP(N7MJpu3bt7THBXEQt(koRGNuzs",
+                    # pylint: disable=line-too-long
+                    "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB",
                     "unsafe",
                     sorted([
                         ".backoff",
@@ -70,6 +79,7 @@ def expected_filters():
                         "answer.awarded_bounty_amount",
                         "answer.body_markdown",
                         "answer.comments",
+                        "answer.community_owned_date",
                         "answer.content_license",
                         "answer.creation_date",
                         "answer.down_vote_count",
@@ -87,17 +97,14 @@ def expected_filters():
                         "comment.link",
                         "comment.owner",
                         "comment.score",
-                        "migration_info.other_site",
-                        "migration_info.question_id",
                         "question.answers",
                         "question.body_markdown",
                         "question.comments",
+                        "question.community_owned_date",
                         "question.content_license",
                         "question.creation_date",
                         "question.down_vote_count",
                         "question.last_edit_date",
-                        "question.migrated_from",
-                        "question.migrated_to",
                         "question.owner",
                         "question.question_id",
                         "question.score",
@@ -124,8 +131,9 @@ def expected_filters():
                     ]),
                 ),
             ],
-            key=lambda tup: tup[0],
+            key=lambda filter_: filter_[0],
         )
+        if is_filter_type(filter_type)
     ]
 
 

@@ -1,3 +1,6 @@
+import warnings
+from http import HTTPMethod
+
 import niquests as requests
 import pytest
 
@@ -10,19 +13,11 @@ def api():
     return StackExchangeApi()
 
 
-def test_singleton():
-    api1 = StackExchangeApi(request_key="key", access_token="token")
-    api2 = StackExchangeApi(request_key="key", access_token="token")
-    api3 = StackExchangeApi(request_key="new_key", access_token="token")
-    api4 = StackExchangeApi(request_key="key", access_token="new_token")
+def test_singleton(api):
+    api1 = StackExchangeApi(api_key="key", access_token="token")
+    api2 = StackExchangeApi(api_key="key", access_token="token")
+    assert api is not api1
     assert api2 is api1
-    assert api3 is not api2
-    assert api2 is not api4 is not api3
-
-
-@pytest.mark.skip("not yet implemented")
-def test_rps():
-    ...
 
 
 def test_simulate_error(api):
@@ -37,13 +32,27 @@ def test_simulate_error(api):
             })
 
 
+# An easier alternative to https://api.stackexchange.com/docs/create-filter
+# for writing complex filters from scratch.
+@pytest.mark.skip("for development purposes only")
 def test_create_filter(api):
-    response = api.create_filter(
+    new_filter = api.create_filter(
         CreateFilterParameters(
-            include=[".page", ".page_size", ".total", ".items"],
-            exclude=["question.question_id", ".total"],
+            include=[
+                # You should almost always include these fields in the filter:
+                ".backoff",
+                ".has_more",
+                ".items",
+                ".quota_remaining",
+                # Specify the rest of your include fields below:
+            ],
+            exclude=[
+                # You should almost always exclude these fields in the filter:
+                ".total",
+                # Specify the rest of your exclude fields below:
+            ],
             base="none",
-        )
+        ),
+        http_method=HTTPMethod.POST,
     )
-    assert (response.included_fields
-            == sorted([".page", ".page_size", ".items"]))
+    warnings.warn(UserWarning(repr(new_filter)))
