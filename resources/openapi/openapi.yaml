@@ -307,6 +307,7 @@ paths:
           example: default;withbody
         - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
+        - $ref: '#/components/parameters/Paging'
   /sites:
     get:
       tags:

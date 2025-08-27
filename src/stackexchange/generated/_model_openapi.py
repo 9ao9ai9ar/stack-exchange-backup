@@ -528,6 +528,22 @@ class QuestionsOnUsersParametersQuery(QuestionsByIdsParametersQuery):
 
 
 @dataclass(kw_only=True)
+class ReadFilterParametersQuery:
+    auth: Auth | None = None
+    """
+    More information can be found at https://api.stackexchange.com/docs/authentication.
+
+    """
+    filter: str | None = None
+    """
+    Filters allow applications to reduce API responses to just the fields they are concerned with, 
+    saving bandwidth.
+
+    """
+    paging: Paging | None = None
+
+
+@dataclass(kw_only=True)
 class RelatedSite:
     """
     This type represents a site that is related in some way to another site.
@@ -660,20 +676,9 @@ class Site:
     twitter_account: str | None = None
 
 
-@dataclass(kw_only=True)
-class SitesParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
-    filter: str | None = None
-    """
-    Filters allow applications to reduce API responses to just the fields they are concerned with, 
-    saving bandwidth.
-
-    """
-    paging: Paging | None = None
+@dataclass
+class SitesParametersQuery(ReadFilterParametersQuery):
+    pass
 
 
 @dataclass(kw_only=True)
@@ -696,9 +701,4 @@ class Styling:
 
 @dataclass
 class AnswersOnUsersParametersQuery(QuestionsByIdsParametersQuery):
-    pass
-
-
-@dataclass
-class ReadFilterParametersQuery(SimulateErrorParametersQuery):
     pass
