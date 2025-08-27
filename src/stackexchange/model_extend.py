@@ -1,23 +1,28 @@
+# ruff: noqa: F722
+# pylint: disable=too-few-public-methods
 import datetime
-from dataclasses import dataclass
-from typing import TypeAlias, ClassVar
-
-from annotated_types import MaxLen
-from pydantic import (
-    ConfigDict,
-    PlainSerializer,
-    field_serializer,
-    model_serializer,
-    model_validator,
+from abc import ABCMeta
+from typing import (
+    ClassVar,
+    dataclass_transform,
+    get_args,
 )
-from pydantic_core.core_schema import SerializerFunctionWrapHandler
-from ruamel.yaml.scalarstring import LiteralScalarString
+
+from attr import attrib
+from attrs import (
+    Converter,
+    define,
+    field,
+    make_class,
+)
+from urllib3.util import Url, parse_url
 
 # noinspection PyProtectedMember
 from stackexchange.generated._model_openapi import *
 
 __all__ = [
     # Component schemas (re-exported from .generated._model_openapi)
+    ## Top level types
     "Answer",
     "Collective",
     "Comment",
@@ -26,6 +31,7 @@ __all__ = [
     "NetworkUser",
     "Question",
     "Site",
+    ## Member types
     "BadgeCount",
     "ClosedDetails",
     "CollectiveExternalLink",
@@ -44,11 +50,10 @@ __all__ = [
     # Types
     "BuiltInFilter",
     "BakedInFilter",
-    # Generic response model
+    # Generic response
     "Response",
-    # Base parameter model
-    "ParametersModel",
-    # Parameter models
+    # Parameters
+    "Parameters",
     "QuestionsByIdsParameters",
     "AnswersOnUsersParameters",
     "QuestionsOnUsersParameters",
@@ -57,9 +62,8 @@ __all__ = [
     "ReadFilterParameters",
     "SitesParameters",
     "AssociatedUsersParameters",
-    # Base YAML metadata model
-    "MetadataModel",
-    # YAML metadata models
+    # YAML frontmatter metadata
+    "Metadata",
     "ShallowUserMetadata",
     "CommentMetadata",
     "AnswerMetadata",
@@ -80,140 +84,33 @@ type BakedInFilter = Literal[
 ]
 
 
-class Response[T](ResponseWrapper):
-    items: Annotated[list[T] | None, Field(fail_fast=True)] = None
+# pylint: disable=too-many-instance-attributes
+@define(kw_only=True)
+class Response[T]:
+    backoff: int | None = None
+    error_id: int | None = None
+    """
+    refers to an Error
+    """
+    error_message: str | None = None
+    error_name: str | None = None
+    has_more: bool | None = None
+    items: list[T] | None = None
     """
     an array of the type found in type
     """
+    page: int | None = None
+    page_size: int | None = None
+    quota_max: int | None = None
+    quota_remaining: int | None = None
+    total: int | None = None
+    type: str | None = None
 
 
-# region Parameter models
-
-# https://www.freecodecamp.org/news/how-to-flatten-a-dictionary-in-python-in-4-different-ways/
-def flatten_dict_and_exclude_none_generator(dct):
-    for k, v in dct.items():
-        if isinstance(v, dict):
-            yield from flatten_dict_and_exclude_none(v).items()
-        elif v is not None:
-            yield k, v
-
-
-def flatten_dict_and_exclude_none(dct) -> dict:
-    return dict(flatten_dict_and_exclude_none_generator(dct))
-
-
-def list_to_semicolon_delimited_str(lst: list) -> str:
-    return ";".join(str(e) for e in lst)
-
-
-# https://github.com/pydantic/pydantic/issues/9992
-# Model config in inheritance doesn't respect MRO.
-class ParametersModel(MyBaseModel):
-    model_config: ClassVar[ConfigDict] \
-        = ConfigDict(extra="allow", frozen=False)
-    """Extra attributes: ``ignore`` (default), ``allow``, ``forbid``.
-    
-    When set to ``allow``, additional parameters like 
-    `request_id <https://api.stackexchange.com/docs/duplicate-requests>`_ 
-    can be added, and validation checks for certain fields can be 
-    lifted (e.g. ``pagesize`` on ``/sites`` can exceed 100).
-    """
-    auth: Auth | None = None
-    filter: BuiltInFilter | BakedInFilter | None = None
-
-    @model_validator(mode="before")
-    @classmethod
-    def path_parameters_into_str_batches(cls, data: Any):
-        if isinstance(data, dict):
-            for k, v in cls.model_fields.items():
-                if isinstance(data.get(k), list) and v.exclude and v.metadata:
-                    for metadata in v.metadata:
-                        if isinstance(metadata, MaxLen):
-                            batch_size = metadata.max_length
-                            data[k] = [
-                                list_to_semicolon_delimited_str(
-                                    data[k][i:i + batch_size]
-                                )
-                                for i in range(0, len(data[k]), batch_size)
-                            ]
-        return data
-
-    @model_serializer(mode="wrap", when_used="unless-none")
-    def flatten_and_exclude_none(self, handler: SerializerFunctionWrapHandler):
-        return flatten_dict_and_exclude_none(handler(self))
-
-
-# https://github.com/pydantic/pydantic/issues/8336
-# ids are typed list[int] for validation and list[str] for serialization.
-IdsType: TypeAlias = Annotated[
-    list[int] | list[str],
-    Field(exclude=True, max_length=100),
-]
-
-
-class QuestionsByIdsParameters(QuestionsByIdsParametersQuery, ParametersModel):
-    ids: IdsType
-
-
-class AnswersOnUsersParameters(AnswersOnUsersParametersQuery, ParametersModel):
-    ids: IdsType
-
-
-class QuestionsOnUsersParameters(QuestionsOnUsersParametersQuery,
-                                 ParametersModel):
-    ids: IdsType
-
-
-class SimulateErrorParameters(SimulateErrorParametersQuery, ParametersModel):
-    id: Annotated[int, Field(exclude=True)]
-
-
-class CreateFilterParameters(CreateFilterParametersQuery, ParametersModel):
-    include: Annotated[
-        list[str] | None,
-        PlainSerializer(list_to_semicolon_delimited_str,
-                        return_type=str,
-                        when_used="unless-none"),
-    ] = None
-    exclude: Annotated[
-        list[str] | None,
-        PlainSerializer(list_to_semicolon_delimited_str,
-                        return_type=str,
-                        when_used="unless-none"),
-    ] = None
-
-
-class ReadFilterParameters(ReadFilterParametersQuery, ParametersModel):
-    filters: Annotated[list[str], Field(exclude=True, max_length=20)]
-
-
-class SitesParameters(SitesParametersQuery, ParametersModel):
-    pass
-
-
-class AssociatedUsersParameters(AssociatedUsersParametersQuery,
-                                ParametersModel):
-    ids: IdsType
-    types: Annotated[
-        list[Literal["main_site", "meta_site"]] | None,
-        PlainSerializer(list_to_semicolon_delimited_str,
-                        return_type=str,
-                        when_used="unless-none"),
-    ] = None
-    """
-    Specify, semicolon delimited, main_site or meta_site to filter by site.
-    """
-
-
-# endregion
-
-# region YAML metadata models
-
-
-@dataclass(frozen=True, slots=True)
+@define(frozen=True)
 class ContentLicenseOption:
     name: str
-    url: AnyUrl
+    url: Url
     starting_date: float
     ending_date: float
 
@@ -224,19 +121,19 @@ content_license_options = {
     for content_license_option in (
         ContentLicenseOption(
             "CC BY-SA 4.0",
-            AnyUrl("https://creativecommons.org/licenses/by-sa/4.0/"),
+            parse_url("https://creativecommons.org/licenses/by-sa/4.0/"),
             datetime.datetime(2018, 5, 2, tzinfo=datetime.UTC).timestamp(),
             float("infinity"),
         ),
         ContentLicenseOption(
             "CC BY-SA 3.0",
-            AnyUrl("https://creativecommons.org/licenses/by-sa/3.0/"),
+            parse_url("https://creativecommons.org/licenses/by-sa/3.0/"),
             datetime.datetime(2011, 4, 8, tzinfo=datetime.UTC).timestamp(),
             datetime.datetime(2018, 5, 2, tzinfo=datetime.UTC).timestamp(),
         ),
         ContentLicenseOption(
             "CC BY-SA 2.5",
-            AnyUrl("https://creativecommons.org/licenses/by-sa/2.5/"),
+            parse_url("https://creativecommons.org/licenses/by-sa/2.5/"),
             -float("infinity"),
             datetime.datetime(2011, 4, 8, tzinfo=datetime.UTC).timestamp(),
         ),
@@ -244,88 +141,192 @@ content_license_options = {
 }
 
 
-class MetadataModel(MyBaseModel, extra="ignore"):
-
-    @field_serializer("content_license",
-                      return_type=str,
-                      when_used="always",
-                      check_fields=False)
-    def linkify_content_license(self, content_license: str | None) -> str:
-        applicable_license = None
-        if content_license_option \
-                := content_license_options.get(content_license or ""):
-            # noinspection PyUnboundLocalVariable
-            applicable_license = content_license_option
-        elif ((publication_date := getattr(self, "last_edit_date", None))
-              or (publication_date := getattr(self, "creation_date", None))):
-            # Guess the content license based on its publication date.
+# https://meta.stackexchange.com/q/411264
+def guess_content_license_from_publication_date(lic: str | None, obj) \
+        -> str | None:
+    if lic is None:
+        if ((publication_date := getattr(obj, "last_edit_date", None))
+                or (publication_date := getattr(obj, "creation_date", None))):
             for content_license_option in content_license_options.values():
                 if (content_license_option.starting_date
                         <= publication_date
                         < content_license_option.ending_date):
-                    applicable_license = content_license_option
-                    break
-        if applicable_license:
-            return (f"[{applicable_license.name}]({applicable_license.url})"
-                    + ("" if content_license else "?"))
-        elif content_license:
-            return content_license
-        else:
-            return ""
+                    lic = content_license_option.name + "?"
+    return lic
 
 
-def epoch_time_to_date_str(seconds_since_epoch: int) -> str:
-    return (datetime.datetime
-            .fromtimestamp(seconds_since_epoch, tz=datetime.UTC)
-            .strftime("%Y-%m-%dT%H:%M:%SZ"))
+globals()["Question"] = define(
+    make_class(
+        Question.__name__,
+        {
+            "content_license": field(
+                default=None,
+                converter=Converter(
+                    guess_content_license_from_publication_date,
+                    takes_self=True,
+                ),
+            ),
+        },
+        bases=(Question,),
+    ),
+    kw_only=True,
+)
 
 
-# noinspection PyUnresolvedReferences
-DateType: TypeAlias = Annotated[
-    int | None,
-    PlainSerializer(epoch_time_to_date_str,
-                    return_type=str,
-                    when_used="unless-none"),
-]
+# region Parameters
 
 
-class ShallowUserMetadata(MetadataModel):
+class Parameters(metaclass=ABCMeta):
+    PATH_PARAMETER_KEY: ClassVar[str] = "PATH_PARAMETER"
+    VECTOR_LIMIT_KEY: ClassVar[str] = "VECTOR_LIMIT"
+    DEFAULT_VECTOR_LIMIT: ClassVar[int] = 100
+    MAX_PAGE_SIZE: ClassVar[int] = 100
+
+
+@dataclass_transform(kw_only_default=True, field_specifiers=(attrib, field))
+def parameters[T](cls: type[T]) -> type[T]:
+    return Parameters.register(
+        define(
+            cls,
+            kw_only=True,
+            field_transformer=parameters_post_init,
+        )
+    )
+
+
+# noinspection PyUnusedLocal
+def parameters_post_init(cls: type, fields_: list) -> list:
+    return [
+        f.evolve(validator=is_allowed_paging)
+        if f.name == "paging"
+        else f.evolve(validator=is_registered_filter)
+        if f.name == "filter"
+        else f
+        for f in fields_
+    ]
+
+
+# noinspection PyUnusedLocal
+def is_allowed_paging(inst, attr, value: Paging | None) -> None:
+    if value is None:
+        return
+    if value.page is not None and not 1 <= value.page < 2 ** 31:
+        raise ValueError("page number out of bounds")
+    if (value.pagesize is not None
+            and not 1 <= value.pagesize <= Parameters.MAX_PAGE_SIZE):
+        raise ValueError("page size out of bounds")
+
+
+# noinspection PyUnusedLocal
+def is_registered_filter(inst, attr, value: str | None) -> None:
+    if value is not None and value not in {
+        literal_value for literal_args_tuples in
+        # pylint: disable=no-member
+        get_args(BuiltInFilter.__value__ | BakedInFilter.__value__)
+        for literal_value in get_args(literal_args_tuples)
+    }:
+        raise ValueError("filter is not registered")
+
+
+def path_param(vector_limit: int | None = None):
+    kwds: dict[str, Any] = {"metadata": {Parameters.PATH_PARAMETER_KEY: True}}
+    if vector_limit is not None:
+        kwds["metadata"][Parameters.VECTOR_LIMIT_KEY] = vector_limit
+    return field(**kwds)
+
+
+@parameters
+class QuestionsByIdsParameters(QuestionsByIdsParametersQuery):
+    ids: list[int] = path_param(vector_limit=Parameters.DEFAULT_VECTOR_LIMIT)
+
+
+@parameters
+class AnswersOnUsersParameters(AnswersOnUsersParametersQuery):
+    ids: list[int] = path_param(vector_limit=Parameters.DEFAULT_VECTOR_LIMIT)
+
+
+@parameters
+class QuestionsOnUsersParameters(QuestionsOnUsersParametersQuery):
+    ids: list[int] = path_param(vector_limit=Parameters.DEFAULT_VECTOR_LIMIT)
+
+
+@parameters
+class SimulateErrorParameters(SimulateErrorParametersQuery):
+    id: int = path_param()
+
+
+@parameters
+class CreateFilterParameters(CreateFilterParametersQuery):
+    pass
+
+
+@parameters
+class ReadFilterParameters(ReadFilterParametersQuery):
+    filters: list[str] = path_param(vector_limit=20)
+
+
+@parameters
+class SitesParameters(SitesParametersQuery):
+    pass
+
+
+@parameters
+class AssociatedUsersParameters(AssociatedUsersParametersQuery):
+    ids: list[int] = path_param(vector_limit=Parameters.DEFAULT_VECTOR_LIMIT)
+
+
+# endregion
+
+# region YAML frontmatter metadata
+
+
+class Metadata(metaclass=ABCMeta):
+    pass
+
+
+@dataclass_transform(kw_only_default=True,
+                     frozen_default=True,
+                     field_specifiers=(attrib, field))
+def metadata[T](cls: type[T]) -> type[T]:
+    return Metadata.register(define(cls, frozen=True, kw_only=True))
+
+
+@metadata
+class ShallowUserMetadata:
     display_name: str | None = None
     user_type: str | None = None
     reputation: int | None = None
     link: str | None = None
 
 
-class CommentMetadata(MetadataModel):
+@metadata
+class CommentMetadata:
     score: int | None = None
-    creation_date: DateType = None
+    creation_date: int | None = None
     content_license: str | None = None
     link: str | None = None
     owner: ShallowUserMetadata | None = None
-    # pylint: disable=unnecessary-lambda
-    body_markdown: Annotated[
-        str | None,
-        PlainSerializer(lambda s: LiteralScalarString(s),
-                        when_used="unless-none"),
-    ] = None
+    body_markdown: str | None = None
 
 
-class AnswerMetadata(MetadataModel):
+@metadata
+class AnswerMetadata:
     is_accepted: bool | None = None
     awarded_bounty_amount: int | None = None
     score: int | None = None
     up_vote_count: int | None = None
     down_vote_count: int | None = None
     owner: ShallowUserMetadata | None = None
-    creation_date: DateType = None
-    last_edit_date: DateType = None
-    community_owned_date: DateType = None
+    creation_date: int | None = None
+    last_edit_date: int | None = None
+    community_owned_date: int | None = None
     content_license: str | None = None
     share_link: str | None = None
     comments: list[CommentMetadata] | None = None
 
 
-class QuestionMetadata(MetadataModel):
+@metadata
+class QuestionMetadata:
     title: str | None = None
     tags: list[str] | None = None
     view_count: int | None = None
@@ -333,9 +334,9 @@ class QuestionMetadata(MetadataModel):
     up_vote_count: int | None = None
     down_vote_count: int | None = None
     owner: ShallowUserMetadata | None = None
-    creation_date: DateType = None
-    last_edit_date: DateType = None
-    community_owned_date: DateType = None
+    creation_date: int | None = None
+    last_edit_date: int | None = None
+    community_owned_date: int | None = None
     content_license: str | None = None
     share_link: str | None = None
     comments: list[CommentMetadata] | None = None

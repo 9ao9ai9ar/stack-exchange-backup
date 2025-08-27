@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2025.07.28"
+version = "2025.08.27"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
 readme = "./README.md"
 requires-python = ">= 3.12"
@@ -31,35 +31,35 @@ classifiers = [
     #    "Programming Language :: Python :: 3.14",
     #    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
-    #    "Programming Language :: Python :: Implementation :: GraalPy",
     #    "Programming Language :: Python :: Implementation :: PyPy",
+    #    "Programming Language :: Python :: Implementation :: GraalPy",
     "Topic :: System :: Archiving :: Backup",
 ]
 urls.source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
-    "niquests[speedups] >= 3.5.0, < 4",
-    "pydantic >= 2.8.0, < 3",
-    "ruamel.yaml >= 0.18, < 0.19",
+    "attrs >= 24.3.0", # https://www.attrs.org/en/stable/changelog.html
+    "cattrs >= 25.1.0", # https://catt.rs/en/stable/history.html
+    "requests >= 2.32.4", # https://requests.readthedocs.io/en/latest/community/updates/#release-history
+    "ruamel.yaml >= 0.18.10", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
 ]
 
 [dependency-groups]
 dev = [
-    "datamodel-code-generator",
-    "devtools",
-    "openapi-spec-validator",
-    "pylint",
-    "ruff",
+    "datamodel-code-generator >= 0.33.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
+    "openapi-spec-validator >= 0.7.2", # https://github.com/python-openapi/openapi-spec-validator/releases
+    "pylint >= 3.3.8, < 4", # https://pylint.readthedocs.io/en/latest/whatsnew/3/index.html
+    "ruff >= 0.12.10", # https://github.com/astral-sh/ruff/releases
 ]
 sit = [
-    "pytest >= 8, < 9",
+    "pytest >= 8.4.0, < 9", # https://docs.pytest.org/en/stable/changelog.html
 ]
 uat = [
-    "memory-profiler",
-    "memray ; sys_platform == 'linux' or sys_platform == 'darwin'",
+    "memory-profiler >= 0.61.0",
+    "memray >= 1.18.0 ; sys_platform == 'linux' or sys_platform == 'darwin'", # https://bloomberg.github.io/memray/changelog.html
 ]
 prod = [
-    "bumpver",
-    "validate-pyproject[all]",
+    "bumpver >= 2025.1131", # https://github.com/mbarkhau/bumpver/blob/master/CHANGELOG.md
+    "validate-pyproject[all] >= 0.24.1", # https://validate-pyproject.readthedocs.io/en/latest/changelog.html
 ]
 all = [
     { include-group = "dev" },
@@ -69,7 +69,7 @@ all = [
 ]
 
 [tool.bumpver]
-current_version = "2025.07.28"
+current_version = "2025.08.27"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
@@ -80,16 +80,13 @@ commit = false
 ]
 
 [tool.datamodel-codegen]
+formatters = ["isort", "ruff-check", "ruff-format"]
 input = "./resources/openapi/openapi.yaml"
 input-file-type = "openapi"
 output = "./src/stackexchange/generated/_model_openapi.py"
-#output-model-type = "dataclasses.dataclass"
-#output-model-type = "msgspec.Struct"
-output-model-type = "pydantic_v2.BaseModel"
+output-model-type = "dataclasses.dataclass"
 ## Typing customization:
-base-class = "stackexchange._model_base.MyBaseModel"
 enum-field-as-literal = "all"
-#strict-types = ["str", "bytes", "int", "float", "bool"] # https://github.com/koxudaxi/datamodel-code-generator/issues/1884
 use-annotated = true
 use-standard-collections = true
 use-union-operator = true
@@ -98,17 +95,16 @@ use-default-kwarg = true
 use-field-description = true
 ## Model customization:
 collapse-root-models = true
-#dataclass-arguments = {"frozen" = true, "kw_only" = true, "slots" = true}
 disable-timestamp = true
-enable-version-header = true
 keep-model-order = true
+keyword-only = true # Requires `--target-python-version` 3.10 or higher.
 reuse-model = true
+target-python-version = "3.12" # TODO: Remove when datamodel-code-generator drops support for Python 3.9.
 use-exact-imports = true
 use-schema-description = true
 ## Template customization:
 use-double-quotes = true
 ## OpenAPI-only options:
-#include-path-parameters = true
 openapi-scopes = [
     "schemas",
     "parameters",
@@ -123,7 +119,6 @@ disable = [
     "missing-function-docstring",
     "missing-module-docstring",
     "no-else-return",
-    "redefined-outer-name",
     "unused-argument",
     "unused-wildcard-import",
     "wildcard-import",
@@ -135,6 +130,12 @@ fail-under = 9
 ignore-paths = [".*/generated"]
 jobs = 0
 output-format = "colorized"
+
+[tool.pylint.design]
+max-args = 5 # Default
+max-attributes = 7 # Default
+max-locals = 15 # Default
+min-public-methods = 2 # Default
 
 [tool.pylint.format]
 max-line-length = 99
@@ -150,8 +151,6 @@ exclude = [
 typeCheckingMode = "strict"
 deprecateTypingAliases = true
 reportUnnecessaryTypeIgnoreComment = true
-# "error" in "standard" mode
-reportIncompatibleVariableOverride = "information" # https://github.com/microsoft/pyright/issues/7840 and PEP 767
 # "error" in "strict" mode
 reportUnknownParameterType = false
 reportUnknownArgumentType = false
@@ -162,7 +161,7 @@ reportMissingParameterType = false
 reportMissingTypeArgument = false
 
 [tool.pytest.ini_options]
-addopts = "-vr a --tb=short"
+addopts = "-vvr aP --tb=short --capture=sys"
 testpaths = ["./tests"]
 xfail_strict = true
 
@@ -175,7 +174,6 @@ extend-exclude = ["**/generated"]
 ignore = [
     "F403", # undefined-local-with-import-star
     "F405", # undefined-local-with-import-star-usage
-    "F722", # forward-annotation-syntax-error
 ]
 
 [tool.uv]

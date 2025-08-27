@@ -1,4 +1,10 @@
+# https://github.com/microsoft/pyright/issues/1575#issuecomment-1304571290
+# pyright: reportCallIssue=information
+# https://github.com/microsoft/pyright/issues/9149
+# pyright: reportArgumentType=information
+# Should show "23 informations"
 import datetime
+import functools
 import inspect
 import threading
 import time
@@ -7,15 +13,22 @@ from collections.abc import Callable, Generator
 from http import HTTPMethod
 from typing import (
     Any,
+    ClassVar,
     Literal,
-    cast,
     overload,
 )
 
-import niquests as requests
-from pydantic import SecretStr
+import attrs
+import requests
+import requests.adapters
+import urllib3
 
 from stackexchange.model_extend import *
+# noinspection PyProtectedMember
+from stackexchange.serdes import (
+    query_converter,
+    unstructure_as_batched_vectors,
+)
 
 __version__ = "2.3"
 __all__ = ["StackExchangeApi"]
@@ -51,81 +64,61 @@ class SingletonMeta(type):
                 .__new__(mcs, clsname, bases, dct, **kwds))
 
 
-# pyright: reportPrivateUsage=false
-class ProxiedRequest:  # pylint: disable=too-few-public-methods
+@attrs.define(frozen=True, kw_only=True)
+class PathParamsInfo[T]:
+    vector_key: str | None
+    path_params: dict[str, Any]
 
-    def __init__(self,
-                 request: Callable[..., requests.models.Response],
-                 api: "StackExchangeApi") -> None:
-        self.request = request
-        self.api = api
-        # functools.update_wrapper(self, request)
 
-    # noinspection PyProtectedMember
-    def __call__(self,
-                 /,
-                 method: str,
-                 url: str,
-                 *,
-                 params: ParametersModel,
-                 **kwargs) -> requests.models.Response:
-        self.api._check_backoff(StackExchangeApi.get_api_name())
-        self.api._add_auth(params)
-        while True:
-            try:
-                self.api._limit_rate_deque.pop()
-                break
-            except IndexError:
-                print("Rate limiting has kicked in at "
-                      + f"{self.api._limit_rate} requests per second.")
-                time.sleep(1 / self.api._limit_rate)
-        match method:
-            case HTTPMethod.GET:
-                kwargs.update({"params": params.model_dump()})
-                response = self.request(method, url, **kwargs)
-            case _:
-                kwargs.update({"data": params.model_dump()})
-                response = self.request(method, url, **kwargs)
-        StackExchangeApi.check_response(response)
-        return response
+def api_method(func):
+    def wrapper(*args, **kwargs):
+        api_method_name = func.__name__
+        return func(*args, **kwargs, initiator=api_method_name)
+
+    return wrapper
 
 
 # pylint: disable=too-many-instance-attributes
+# noinspection PyTypeChecker
 class StackExchangeApi(metaclass=SingletonMeta):
-    API_ROOT = f"https://api.stackexchange.com/{__version__}"
-    API_KEY = "YLTVFmHkeJbm7ZIOoXstag(("
-    MAX_REQUESTS_PER_SECOND = 30
+    API_ROOT: ClassVar[str] = f"https://api.stackexchange.com/{__version__}"
+    API_KEY: ClassVar[str] = "YLTVFmHkeJbm7ZIOoXstag(("
+    MAX_REQUESTS_PER_DAY: ClassVar[int] = 10_000
+    MAX_REQUESTS_PER_SECOND: ClassVar[int] = 30
     """If a single IP is making more than 30 requests a second, new 
     requests will be dropped.
     """
-    MAX_CONCURRENT_REQUESTS = 1
+    MAX_CONCURRENT_REQUESTS: ClassVar[int] = 1
     """Just being conservative here, as the exact rate limit mechanisms 
     are not well-understood.
     """
-    MAX_PAGE_SIZE = 100
 
     def __init__(self,
-                 api_key=API_KEY,
-                 access_token=None,
-                 limit_rate=MAX_REQUESTS_PER_SECOND) -> None:
-        self._api_key: str | None = api_key
+                 api_key: str | None = API_KEY,
+                 access_token: str | None = None,
+                 limit_rate: int = MAX_REQUESTS_PER_SECOND) -> None:
+        self.api_key: str | None = api_key
         """API keys, also known as request keys or app keys,
         grant more requests per day (10,000 vs 300 for anonymous API 
         access) and allow querying results past page 25.
         """
-        self._access_token: SecretStr | None = access_token
-        self._limit_rate: int = limit_rate
+        self.access_token: str | None = access_token
+        self._limit_rate: int = (
+            limit_rate
+            if 1 <= limit_rate <= StackExchangeApi.MAX_REQUESTS_PER_SECOND
+            else StackExchangeApi.MAX_REQUESTS_PER_SECOND
+        )
         self._limit_rate_deque: deque[int] = deque(
             [0] * StackExchangeApi.MAX_CONCURRENT_REQUESTS,
             maxlen=StackExchangeApi.MAX_CONCURRENT_REQUESTS,
         )
-        self._limit_rate_timer \
-            = threading.Thread(target=self._refill_limit_rate_deque,
-                               name="Thread-Limit-Rate-Timer",
-                               daemon=True)
-        self._limit_rate_timer.start()
+        self._limit_rate_timer = threading.Thread(
+            target=self._refill_limit_rate_deque,
+            name="Thread-Limit-Rate-Timer",
+            daemon=True,
+        )
+        self._quota_remaining: int = StackExchangeApi.MAX_REQUESTS_PER_DAY
         self._backoff: dict[str, int] = {}
-        self._quota_remaining: int | None = None
         """
         `Documentation <https://api.stackexchange.com/docs/throttle>`_:
         A dynamic throttle is also in place on a per-method level.
@@ -134,43 +127,59 @@ class StackExchangeApi(metaclass=SingletonMeta):
         method again.
         All methods (even seemingly trivial ones) may return backoff.
         """
-        self.session = requests.Session()
-        # Can't be arsed to wade through the rigmarole of
-        # trying to please the Python type checkers.
-        self.session.request = ProxiedRequest(
-            self.session.request,
-            self,
-        )  # pyright: ignore [reportAttributeAccessIssue]
+        session = requests.Session()
+        session.mount(
+            "https://",
+            requests.adapters.HTTPAdapter(pool_connections=1,
+                                          pool_maxsize=1,
+                                          max_retries=urllib3.Retry(total=5))
+        )
+        self.proxied_request = self._request_hook(session.request)
+        self._limit_rate_timer.start()
+
+    @property
+    def limit_rate(self):
+        return self._limit_rate
 
     def _refill_limit_rate_deque(self) -> None:
         while True:
-            time.sleep(1 / self._limit_rate)
+            time.sleep(1 / self.limit_rate)
             self._limit_rate_deque.appendleft(0)
 
-    @classmethod
-    def get_api_name(cls) -> str:
-        current_frame = inspect.currentframe()
-        while (current_frame
-               and (f_code := current_frame.f_code)
-               and (
-                       not f_code.co_qualname.startswith(cls.__name__)
-                       or isinstance(cls.__dict__.get(f_code.co_name),
-                                     (staticmethod, classmethod))
-                       or f_code.co_name.startswith("_")
-               )):
-            current_frame = current_frame.f_back
-        if not current_frame:
-            return "unknown"
-        else:
-            return current_frame.f_code.co_name
+    def _request_hook(self, request: Callable[..., requests.models.Response]):
+        def wrapped_request(initiator: str, params: Parameters):
+            @functools.wraps(requests.request)
+            def api_request(method: str, url: str, **kwargs) \
+                    -> requests.models.Response:
+                self._respect_quota_remaining()
+                self._respect_backoff(initiator)
+                self._respect_rate_limit()
+                self._attach_authentication_info(params)
+                match method:
+                    case HTTPMethod.GET:
+                        kwargs["params"] = query_converter.unstructure(params)
+                    case _:
+                        kwargs["data"] = query_converter.unstructure(params)
+                response = request(method, url, **kwargs)
+                return response
 
-    def _check_backoff(self, api_name: str) -> None:
-        if self._backoff.get(api_name) is not None:
+            return api_request
+
+        return wrapped_request
+
+    def _respect_quota_remaining(self):
+        if self._quota_remaining <= 0:
+            print("We've reached the daily usage quota. "
+                  + "The program will resume from sleep in 24 hours "
+                  + "(press Ctrl+C to abort the pending operation).",
+                  flush=True)
+            time.sleep(24 * 60 * 60)
+
+    def _respect_backoff(self, initiator: str) -> None:
+        if lift_backoff_timestamp := self._backoff.pop(initiator, None):
             now_timestamp = datetime.datetime.now(datetime.UTC).timestamp()
-            backoff_timestamp = self._backoff.pop(api_name)
-            # Add 1 more second just to be safe
-            wait_seconds = round(backoff_timestamp - now_timestamp + 1)
-            if wait_seconds > 0:
+            if (wait_seconds := int(lift_backoff_timestamp - now_timestamp)
+                                + 1) > 0:  # Add 1 more second just to be safe
                 print(
                     "We've made too many requests to the Stack Exchange API, "
                     + f"so we will need to wait for {wait_seconds} seconds. "
@@ -179,63 +188,97 @@ class StackExchangeApi(metaclass=SingletonMeta):
                 )
                 time.sleep(wait_seconds)
 
-    def _add_auth(self, params: ParametersModel) -> None:
-        if params.auth is None:
-            params.auth = Auth(key=self._api_key,
-                               access_token=self._access_token)
+    def _respect_rate_limit(self):
+        while True:
+            try:
+                self._limit_rate_deque.pop()
+                break
+            except IndexError:
+                print("Rate limiting has kicked in at "
+                      + f"{self.limit_rate} requests per second.")
+                time.sleep(1 / self.limit_rate)
 
-    @staticmethod
-    def check_response(response: requests.models.Response) -> None:
+    def _attach_authentication_info(self, params: Parameters) -> None:
+        if hasattr(params, "auth") and getattr(params, "auth") is None:
+            setattr(params, "auth", Auth(key=self.api_key,
+                                         access_token=self.access_token))
+
+    def _process_response[T](self,
+                             response: requests.models.Response,
+                             model: type[T],
+                             request_initiator: str) -> Response[T]:
+        self._inspect_response_status(response)
+        # noinspection PyTypeHints
+        structured_response = query_converter.loads(response.content or b"",
+                                                    Response[model])
+        self._inspect_quota_remaining(structured_response)
+        self._inspect_backoff(structured_response, request_initiator)
+        return structured_response
+
+    @classmethod
+    def _inspect_response_status(cls, response: requests.models.Response) \
+            -> None:
         if not response.ok:
             x_headers = {
-                k: v for k, v in response.oheaders.to_dict().lower_items()
+                k: v for k, v in response.headers.lower_items()
                 if k in (
-                    "x_request_guid",
-                    "x_route_name",
-                    "x_error_status",
-                    "x_error_name",
-                    "x_error_message",
+                    "x-request-guid",
+                    "x-route-name",
+                    "x-error-status",
+                    "x-error-name",
+                    "x-error-message",
                 )
             }
             raise requests.HTTPError(x_headers, response=response)
 
-    def _parse_response[T](self,
-                           response: requests.models.Response,
-                           model: type[T]) -> Response[T]:
-        # noinspection PyTypeHints
-        parsed = (Response[model]
-                  .model_validate_json(response.content or bytes()))
-        self._update_backoff(StackExchangeApi.get_api_name(), parsed)
-        self.check_quota_remaining(parsed)
-        return parsed
-
-    def check_quota_remaining(self, response: Response) -> None:
+    def _inspect_quota_remaining(self, response: Response) -> None:
         if (quota_remaining := response.quota_remaining) is not None:
             self._quota_remaining = quota_remaining
-            if self._quota_remaining <= 0:
-                print("We've reached the daily usage quota. "
-                      + "The program will resume from sleep in 24 hours "
-                      + "(press Ctrl+C to abort the pending operation).",
-                      flush=True)
-                time.sleep(24 * 60 * 60)
 
-    def _update_backoff(self, api_name: str, response: Response) -> None:
+    def _inspect_backoff(self,
+                         response: Response,
+                         request_initiator: str) -> None:
         if response.backoff:
-            self._backoff[api_name] \
-                = round(datetime.datetime.now(datetime.UTC).timestamp()
-                        + response.backoff)
+            self._backoff[request_initiator] = (
+                    int(datetime.datetime.now(datetime.UTC).timestamp())
+                    + response.backoff
+                    + 1  # Add 1 more second just to be safe
+            )
+
+    @classmethod
+    def path_params_info(cls, params: Parameters) -> PathParamsInfo:
+        params_type = type(params)
+        vector_key = None
+        path_params_dict = {}
+        # noinspection PyDataclass
+        fields_dict = attrs.fields_dict(params_type)
+        for k, v in fields_dict.items():
+            if (Parameters.PATH_PARAMETER_KEY in v.metadata
+                    and (path_param_ := getattr(params, k)) is not None):
+                path_params_dict[k] = path_param_
+                if isinstance(path_param_, list):
+                    vector_key = k
+        if vector_key:
+            path_params_dict[vector_key] = unstructure_as_batched_vectors(
+                path_params_dict[vector_key],
+                fields_dict[vector_key],
+            )
+        return PathParamsInfo(vector_key=vector_key,
+                              path_params=path_params_dict)
 
     @overload
     # pylint: disable=too-many-arguments
     def _call_api[T](self,
                      /,
                      url_template: str,
-                     params: ParametersModel,
+                     params: Parameters,
                      model: type[T],
                      *,
+                     initiator: str = ...,
+                     http_method: HTTPMethod = ...,
                      auto_pagination: bool = ...,
                      items_only: Literal[False],
-                     http_method: HTTPMethod = ...) \
+                     **kwargs) \
             -> Generator[Response[T], None, None]:
         ...
 
@@ -244,12 +287,14 @@ class StackExchangeApi(metaclass=SingletonMeta):
     def _call_api[T](self,
                      /,
                      url_template: str,
-                     params: ParametersModel,
+                     params: Parameters,
                      model: type[T],
                      *,
+                     initiator: str = ...,
+                     http_method: HTTPMethod = ...,
                      auto_pagination: bool = ...,
                      items_only: Literal[True] = ...,
-                     http_method: HTTPMethod = ...) \
+                     **kwargs) \
             -> Generator[T, None, None]:
         ...
 
@@ -257,70 +302,76 @@ class StackExchangeApi(metaclass=SingletonMeta):
     def _call_api[T](self,
                      /,
                      url_template: str,
-                     params: ParametersModel,
+                     params: Parameters,
                      model: type[T],
                      *,
+                     initiator="unknown",
+                     http_method: HTTPMethod = HTTPMethod.GET,
                      auto_pagination=True,
                      items_only=True,
-                     http_method=HTTPMethod.GET) \
+                     **kwargs) \
             -> Generator[Response[T] | T, None, None]:
-        path_parameter_ids_varname = None
-        path_parameter_ids_batch = [None]
-        path_parameters = {}
-        for k, v in type(params).model_fields.items():
-            if v.exclude and (field := getattr(params, k, None)) is not None:
-                if isinstance(field, list):
-                    path_parameter_ids_varname = k
-                    path_parameter_ids_batch = getattr(params, k)
-                else:
-                    path_parameters[k] = getattr(params, k)
-        for ids in path_parameter_ids_batch:
-            if path_parameter_ids_varname:
-                path_parameters.update({path_parameter_ids_varname: ids})
-            url = url_template.format(**path_parameters)
+        info = self.path_params_info(params)
+        batched_vectors = (info.path_params[info.vector_key]
+                           if info.vector_key
+                           else [0])
+        for vector in batched_vectors:
+            if info.vector_key:
+                info.path_params[info.vector_key] = vector
+            url = url_template.format(**info.path_params)
             page = 0
             has_more = True
             while has_more:
                 page += 1
                 if auto_pagination:
-                    setattr(params,
-                            "paging",
-                            Paging(page=page,
-                                   pagesize=StackExchangeApi.MAX_PAGE_SIZE))
-                response = (self.session
-                            .request(http_method, url,
-                                     params=cast(dict, params)))
-                parsed = self._parse_response(response, model)
-                has_more = ((parsed.has_more or parsed.items)
+                    setattr(
+                        params,
+                        "paging",
+                        Paging(page=page, pagesize=Parameters.MAX_PAGE_SIZE)
+                    )
+                request = self.proxied_request(initiator, params)
+                if not kwargs.get("timeout"):
+                    kwargs["timeout"] = (5, 30)
+                response = request(http_method, url, **kwargs)
+                structured_response \
+                    = self._process_response(response, model, initiator)
+                has_more = ((structured_response.has_more
+                             or structured_response.items)
                             and auto_pagination)
                 if items_only:
-                    yield from parsed.items or []
+                    yield from structured_response.items or []
                 else:
-                    yield parsed
+                    yield structured_response
 
     @overload
+    @api_method
     def questions_by_ids(self,
                          /,
                          params: QuestionsByIdsParameters,
                          *,
-                         items_only: Literal[False]) \
+                         items_only: Literal[False],
+                         **kwargs) \
             -> Generator[Response[Question], None, None]:
         ...
 
     @overload
+    @api_method
     def questions_by_ids(self,
                          /,
                          params: QuestionsByIdsParameters,
                          *,
-                         items_only: Literal[True] = ...) \
+                         items_only: Literal[True] = ...,
+                         **kwargs) \
             -> Generator[Question, None, None]:
         ...
 
+    @api_method
     def questions_by_ids(self,
                          /,
                          params: QuestionsByIdsParameters,
                          *,
-                         items_only=True) \
+                         items_only=True,
+                         **kwargs) \
             -> Generator[Response[Question] | Question, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/questions-by-ids>`_
         Returns the questions identified in {ids}.
@@ -329,41 +380,47 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/questions/{ids}",
             params,
             Question,
             auto_pagination=True,
             items_only=items_only,
+            **kwargs,
         )
 
     @overload
+    @api_method
     def answers_on_users(self,
                          /,
                          params: AnswersOnUsersParameters,
                          *,
                          auto_pagination: bool = ...,
-                         items_only: Literal[False]) \
+                         items_only: Literal[False],
+                         **kwargs) \
             -> Generator[Response[Answer], None, None]:
         ...
 
     @overload
+    @api_method
     def answers_on_users(self,
                          /,
                          params: AnswersOnUsersParameters,
                          *,
                          auto_pagination: bool = ...,
-                         items_only: Literal[True] = ...) \
+                         items_only: Literal[True] = ...,
+                         **kwargs) \
             -> Generator[Answer, None, None]:
         ...
 
+    @api_method
     def answers_on_users(self,
                          /,
                          params: AnswersOnUsersParameters,
                          *,
                          auto_pagination=True,
-                         items_only=True) \
+                         items_only=True,
+                         **kwargs) \
             -> Generator[Response[Answer] | Answer, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/answers-on-users>`_
         Returns the answers the users in {ids} have posted.
@@ -373,41 +430,47 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/users/{ids}/answers",
             params,
             Answer,
             auto_pagination=auto_pagination,
             items_only=items_only,
+            **kwargs,
         )
 
     @overload
+    @api_method
     def questions_on_users(self,
                            /,
                            params: QuestionsOnUsersParameters,
                            *,
                            auto_pagination: bool = ...,
-                           items_only: Literal[False]) \
+                           items_only: Literal[False],
+                           **kwargs) \
             -> Generator[Response[Question], None, None]:
         ...
 
     @overload
+    @api_method
     def questions_on_users(self,
                            /,
                            params: QuestionsOnUsersParameters,
                            *,
                            auto_pagination: bool = ...,
-                           items_only: Literal[True] = ...) \
+                           items_only: Literal[True] = ...,
+                           **kwargs) \
             -> Generator[Question, None, None]:
         ...
 
+    @api_method
     def questions_on_users(self,
                            /,
                            params: QuestionsOnUsersParameters,
                            *,
                            auto_pagination=True,
-                           items_only=True) \
+                           items_only=True,
+                           **kwargs) \
             -> Generator[Response[Question] | Question, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/questions-on-users>`_
         Gets the questions asked by the users in {ids}.
@@ -417,16 +480,17 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/users/{ids}/questions",
             params,
             Question,
             auto_pagination=auto_pagination,
             items_only=items_only,
+            **kwargs,
         )
 
-    def simulate_error(self, /, params: SimulateErrorParameters) \
+    @api_method
+    def simulate_error(self, /, params: SimulateErrorParameters, **kwargs) \
             -> Response[Any]:
         """`Documentation <https://api.stackexchange.com/docs/simulate-error>`_
         This method allows you to generate an error.
@@ -440,38 +504,46 @@ class StackExchangeApi(metaclass=SingletonMeta):
                 params,
                 Error,
                 auto_pagination=False,
-                items_only=False
+                items_only=False,
+                **kwargs,
             )
         )
 
     @overload
+    @api_method
     def create_filter(self,
                       /,
                       params: CreateFilterParameters,
                       *,
-                      items_only: Literal[False],
                       http_method: Literal[HTTPMethod.GET]
-                                   | Literal[HTTPMethod.POST] = ...) \
+                                   | Literal[HTTPMethod.POST] = ...,
+                      items_only: Literal[False],
+                      **kwargs) \
             -> Response[Filter]:
         ...
 
     @overload
+    @api_method
     def create_filter(self,
                       /,
                       params: CreateFilterParameters,
                       *,
-                      items_only: Literal[True] = ...,
                       http_method: Literal[HTTPMethod.GET]
-                                   | Literal[HTTPMethod.POST] = ...) \
+                                   | Literal[HTTPMethod.POST] = ...,
+                      items_only: Literal[True] = ...,
+                      **kwargs) \
             -> Filter:
         ...
 
+    @api_method
     def create_filter(self,
                       /,
                       params: CreateFilterParameters,
                       *,
+                      http_method: Literal[HTTPMethod.GET]
+                                   | Literal[HTTPMethod.POST] = HTTPMethod.GET,
                       items_only=True,
-                      http_method=HTTPMethod.GET) \
+                      **kwargs) \
             -> Response[Filter] | Filter:
         """`Documentation <https://api.stackexchange.com/docs/create-filter>`_
         Creates a new filter given a list of includes, excludes, a base
@@ -481,45 +553,51 @@ class StackExchangeApi(metaclass=SingletonMeta):
         common wrapper object with a leading "."
 
         :param params:
-        :param items_only:
         :param http_method:
+        :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return next(
             self._call_api(
                 StackExchangeApi.API_ROOT + "/filters/create",
                 params,
                 Filter,
+                http_method=http_method,
                 auto_pagination=False,
                 items_only=items_only,
-                http_method=http_method,
+                **kwargs,
             )
         )
 
     @overload
+    @api_method
     def read_filter(self,
                     /,
                     params: ReadFilterParameters,
                     *,
-                    items_only: Literal[False]) \
+                    items_only: Literal[False],
+                    **kwargs) \
             -> Generator[Response[Filter], None, None]:
         ...
 
     @overload
+    @api_method
     def read_filter(self,
                     /,
                     params: ReadFilterParameters,
                     *,
-                    items_only: Literal[True] = ...) \
+                    items_only: Literal[True] = ...,
+                    **kwargs) \
             -> Generator[Filter, None, None]:
         ...
 
+    @api_method
     def read_filter(self,
                     /,
                     params: ReadFilterParameters,
                     *,
-                    items_only=True) \
+                    items_only=True,
+                    **kwargs) \
             -> Generator[Response[Filter] | Filter, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/read-filter>`_
         Returns the fields included by the given filters,
@@ -529,41 +607,47 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/filters/{filters}",
             params,
             Filter,
             auto_pagination=True,
             items_only=items_only,
+            **kwargs,
         )
 
     @overload
+    @api_method
     def sites(self,
               /,
               params: SitesParameters,
               *,
               auto_pagination: bool = ...,
-              items_only: Literal[False]) \
+              items_only: Literal[False],
+              **kwargs) \
             -> Generator[Response[Site], None, None]:
         ...
 
     @overload
+    @api_method
     def sites(self,
               /,
               params: SitesParameters,
               *,
               auto_pagination: bool = ...,
-              items_only: Literal[True] = ...) \
+              items_only: Literal[True] = ...,
+              **kwargs) \
             -> Generator[Site, None, None]:
         ...
 
+    @api_method
     def sites(self,
               /,
               params: SitesParameters,
               *,
               auto_pagination=True,
-              items_only=True) \
+              items_only=True,
+              **kwargs) \
             -> Generator[Response[Site] | Site, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/sites>`_
         Returns all sites in the network.
@@ -573,41 +657,47 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/sites",
             params,
             Site,
             auto_pagination=auto_pagination,
             items_only=items_only,
+            **kwargs,
         )
 
     @overload
+    @api_method
     def associated_users(self,
                          /,
                          params: AssociatedUsersParameters,
                          *,
                          auto_pagination: bool = ...,
-                         items_only: Literal[False]) \
+                         items_only: Literal[False],
+                         **kwargs) \
             -> Generator[Response[NetworkUser], None, None]:
         ...
 
     @overload
+    @api_method
     def associated_users(self,
                          /,
                          params: AssociatedUsersParameters,
                          *,
                          auto_pagination: bool = ...,
-                         items_only: Literal[True] = ...) \
+                         items_only: Literal[True] = ...,
+                         **kwargs) \
             -> Generator[NetworkUser, None, None]:
         ...
 
+    @api_method
     def associated_users(self,
                          /,
                          params: AssociatedUsersParameters,
                          *,
                          auto_pagination=True,
-                         items_only=True) \
+                         items_only=True,
+                         **kwargs) \
             -> Generator[Response[NetworkUser] | NetworkUser, None, None]:
         """`Documentation <https://api.stackexchange.com/docs/associated-users>`_
         Returns all of a user's associated accounts,
@@ -620,11 +710,11 @@ class StackExchangeApi(metaclass=SingletonMeta):
         :param items_only:
         :return:
         """
-        # noinspection PyTypeChecker
         return self._call_api(
             StackExchangeApi.API_ROOT + "/users/{ids}/associated",
             params,
             NetworkUser,
             auto_pagination=auto_pagination,
             items_only=items_only,
+            **kwargs,
         )

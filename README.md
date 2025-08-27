@@ -1,21 +1,18 @@
 # Stack Exchange Backup
 
-Download all your posts on the Stack Exchange network as Markdown files
-via a Python script talking to the Stack Exchange API.
+> [!CAUTION]
+> Stack Exchange Backup is intended as a backup tool for your own personal writings on the Stack Exchange network sites 
+> in the form of questions and answers.
+> It is currently alpha software, so nothing is set in stone yet.
+> If you publish the files created with this script, 
+> you are fully responsible for the compliance with the terms of the content licenses, 
+> as the attributions data may be incorrect or incomplete.
+> Due to technical difficulties, some user contents may be missing from the backup.
+> Please refer to the [omissions section](#omissions) for additional details.
 
 > [!NOTE]
 > This software is NOT an official product of, nor is it affiliated with, endorsed by, or sponsored by, 
 > Stack Exchange, Inc.
-
-> [!CAUTION]
-> Stack Exchange Backup is currently alpha-quality software.
-> It is intended as a backup tool for your own personal writings on the Stack Exchange network sites 
-> in the form of questions and answers.
-> If you plan to publish from those backup files, which likely include contributions from other people,
-> do note that the annotated attributions may be incorrect or incomplete, 
-> and you are solely responsible for the compliance with the terms of the content licenses.
-> Be sure to also read the [omissions section](#omissions) to be informed of the user contents 
-> that are excluded in the backup.
 
 ## Showcase
 
@@ -71,18 +68,22 @@ Remember to activate the virtual environment first!
 
 ```console
 (.venv) $ python -m stackexchange.backup --help
-usage: backup.py [-h] --account-id ACCOUNT_ID [--out-dir OUT_DIR] [--no-meta] [--api-key API_KEY]
-                 [--limit-rate LIMIT_RATE]
+usage: backup.py [-h] --account-id ACCOUNT_ID [--out-dir OUT_DIR] [--format {markdown,json}] [--no-meta]
+                 [--clean] [--api-key API_KEY] [--limit-rate LIMIT_RATE]
 
 options:
   -h, --help            show this help message and exit
   --account-id ACCOUNT_ID
-                        account ID
-  --out-dir OUT_DIR     output directory (default: .)
+                        user account ID on stackexchange.com
+  --out-dir OUT_DIR     output directory (defaults to the current working directory)
+  --format {markdown,json}
+                        output file format (default: markdown)
   --no-meta             do not back up posts on meta sites
-  --api-key API_KEY     API key
+  --clean               remove files from the stack_user_id subdirectory before back up
+  --api-key API_KEY     API key (for debugging only)
   --limit-rate LIMIT_RATE
-                        Maximum request rate in requests per second (default: 10)
+                        maximum request rate in requests per second within the integer range of 1 and 30        
+                        inclusive (default: 10)
 ```
 
 * `ACCOUNT_ID`: the ID of the Stack Exchange network account whose posts you want to back up.
@@ -102,18 +103,21 @@ options:
 
 * `OUT_DIR`: the folder to download your files to.
 
-* `API_KEY`: a token that grants an increased download quota.
+* `API_KEY`: a token that grants an increased query quota.
   A default API key is included and used automatically in the script.
   To access the API without using a key, assign an empty string as the value to this option.
 
 * `LIMIT_RATE`: a soft limit imposed on the running program.
-  It is stated [in no uncertain terms](https://api.stackexchange.com/docs/throttle) that
+  It is [stated](https://api.stackexchange.com/docs/throttle) in no uncertain terms that
   the Stack Exchange API considers 30+ requests per second per IP to be very abusive,
   and will thus ban any rogue IP from making further requests to it for a period of time, typically within a few minutes.
 
 ## Output
 
 ### Directory Layout
+
+The output directory layout is mostly a replication of the short form structures of 
+the [Stack Exchange engine URLs](https://meta.stackexchange.com/q/332237) with minor differences.
 
 ```txt
 stack_user_<ACCOUNT_ID>/
@@ -134,7 +138,10 @@ stack_user_<ACCOUNT_ID>/
   ...
 ```
 
-### File Layout
+### File Layout (Markdown)
+
+The default Markdown output file layout contains a YAML front matter block, 
+which is a way to add metadata to generated web pages in many static site generators.
 
 ```yaml
 ---
@@ -169,28 +176,28 @@ comments:
     link: str
   body_markdown: str
 ---
-# {body_markdown}
+{{ post.body_markdown }}
 ```
 
 ### Omissions
 
-| Items                                 | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-|---------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Deleted posts                         | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                            |
-| (Some) migrated posts                 | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. For additional information, see *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*.                                                                                                                                                                                                                                         |
-| (Some) community wiki posts           | The API does not seem to provide the means to collect community wikis of which a user is a co-author but not the original poster. The authorship of community wikis is also difficult to programmatically determine and be given proper attribution. For additional information, see *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*.                                                                                                                                                            |
-| Answers to one's own merged questions | This is a rare occurrence, and including answers to the merge targets may be confusing as they may quote from the target questions and have accepted answers that the owner of the merged questions might not agree with. For additional information, see *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*.                                                                                                                                                                                          |
-| Area 51 posts                         | [Area 51 is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Articles                              | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since release. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
-| Saves                                 | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                      |
+| Items                       | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deleted posts               | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| (Some) community wiki posts | The API does not seem to provide an easy or reliable way to retrieve community wikis of which a user is a co-author but not the original poster. The authorships of community wikis are also difficult to programmatically determine and be given proper attributions. Additional reading: *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*                                                                                                                                                                     |
+| (Some) migrated posts       | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. Additional reading: *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*                                                                                                                                                                                                                                                                    |
+| Answers to merged questions | In this rather rare occurrence, all of the merged question's answers become answers to the target question. Although the combined answers to the target question can be located, it may be confusing to include them as they may quote from the target question and have an accepted status that the owner of the merged question might not agree with. The inclusion of this category of items may be revisited in the future. Additional reading: *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*               |
+| Area 51 posts               | [Area 51 Discussions is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Articles                    | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since its inception in 2021. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
+| Saves                       | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                                    |
 
 ## Related Projects
 
 ### [Stack Exchange API](https://api.stackexchange.com/)
 
 As one of the three official gateways to the public data on the Stack Exchange network,
-the API is the most conducive to application development, but is also mired in bugs and limitations,
-so it'd be a good idea to cross-check or complement the API data with data obtained through other means.
+the API is the most conducive to application development, but is also mired in bugs and limitations.
+Therefore, it'd be a good idea to cross-check or complement the API data with data obtained through other means.
 
 #### [mhdadk/stack-exchange-backup](https://github.com/mhdadk/stack-exchange-backup)
 
@@ -203,7 +210,7 @@ some insufficiently explained, and the numerous bugs scattered all over the plac
 #### [StackExchangeBackupLaravel](https://github.com/ryancwalsh/StackExchangeBackupLaravelPHP)
 
 StackExchangeBackupLaravel allows exporting a somewhat complete data footprint of a user on the Stack Exchange network.
-The user contents are transcoded to JSON from their original Markdown format and uploaded to Amazon S3 by default.
+The user contents are saved in JSON and uploaded to Amazon S3 by default.
 
 ### [Stack Exchange Data Explorer](https://data.stackexchange.com/)
 
@@ -224,7 +231,7 @@ convert your Stack Exchange posts into a fancy GitHub Pages website.
 
 The quarterly dump of all user-contributed data on the Stack Exchange network.
 In an [announcement](https://meta.stackexchange.com/q/401324) made in July 2024,
-the data dumps will no longer be uploaded to the [Internet Archive](https://archive.org/details/stackexchange);
+the data dumps will no longer be [uploaded](https://archive.org/details/stackexchange) to the Internet Archive;
 instead, they will be provided from a section in the site user profile settings.
 Therefore, this method of backup has a few major downsides:
 
@@ -277,9 +284,7 @@ It is my policy to strive to support, within reason,
 all [non-end-of-life, stable releases](https://devguide.python.org/versions/#status-key) of Python,
 as well as all prominent, up-to-date Python implementations, namely CPython, PyPy and GraalPy.
 If you are a Windows or macOS user, do note that official binaries are not provided for the security releases.
-Thereby, I encourage you to instead install it through one of the following channels
-to benefit from the continuing security fixes:
-
-* [Miniconda](https://www.anaconda.com/download/)
-* [Miniforge](https://github.com/conda-forge/miniforge/releases)
-* [Pixi](https://github.com/prefix-dev/pixi/releases)
+Thereby, I encourage you to instead install it from either the `defaults` (recommended) 
+or the `conda-forge` conda channel, by using one of the 
+[conda-compatible tools](https://conda.org/blog/2024-08-14-conda-ecosystem-explained/),
+to benefit from the continuing security fixes.

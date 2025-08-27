@@ -1,4 +1,9 @@
-import typing
+from typing import (
+    Literal,
+    TypeAlias,
+    TypeIs,
+    get_args,
+)
 
 import pytest
 
@@ -9,58 +14,57 @@ from stackexchange.model_extend import (
     ReadFilterParameters,
 )
 
-type FilterType = typing.Literal["safe", "unsafe", "invalid"]
+FilterType: TypeAlias = Literal["safe", "unsafe", "invalid"]
 
 
-@pytest.fixture(scope="module")
-def defined_filters():
+@pytest.fixture(scope="module", name="custom_filters")
+def custom_filters_fixture():
     api = StackExchangeApi()
-    # https://github.com/pylint-dev/pylint/issues/9885
     # pylint: disable=no-member
-    baked_in_filters = typing.get_args(BakedInFilter.__value__)
-    return list(
-        api.read_filter(ReadFilterParameters(filters=sorted(baked_in_filters)))
+    baked_in_filters = get_args(BakedInFilter.__value__)
+    return sorted(
+        api.read_filter(ReadFilterParameters(filters=list(baked_in_filters))),
+        key=lambda f: f.filter or "",
     )
 
 
-@pytest.fixture(scope="module")
-def expected_filters():
-    def is_filter_type(filter_type: str) -> typing.TypeIs[FilterType]:
-        # https://github.com/pylint-dev/pylint/issues/9885
-        # pylint: disable=no-member
-        assert filter_type in typing.get_args(FilterType.__value__)
+@pytest.fixture(scope="module", name="defined_filters")
+def defined_filters_fixture():
+    def is_filter_type(filter_type: str) -> TypeIs[FilterType]:
+        assert filter_type in get_args(FilterType)
         return True
 
-    return [
-        Filter(
-            filter=filter_,
-            filter_type=filter_type,
-            included_fields=included_fields,
-        )
-        for filter_, filter_type, included_fields in sorted(
+    return sorted(
+        (
+            Filter(
+                filter=filter_,
+                filter_type=filter_type,
+                included_fields=sorted(included_fields),
+            )
+            for filter_, filter_type, included_fields in
             [
                 (
                     "!-0ttWpKaHtrB(oS",
                     "safe",
-                    sorted([
+                    [
                         ".backoff",
                         ".has_more",
                         ".items",
                         ".quota_remaining",
                         ".total",
-                    ]),
+                    ],
                 ),
                 (
                     "!2SUoF4c)sOul00Zq",
                     "safe",
-                    sorted([
+                    [
                         ".backoff",
                         ".has_more",
                         ".items",
                         ".quota_remaining",
                         "network_user.site_url",
                         "network_user.user_id",
-                    ]),
+                    ],
                 ),
                 # Due to a bug mentioned in
                 # https://meta.stackexchange.com/q/247899,
@@ -70,7 +74,7 @@ def expected_filters():
                     # pylint: disable=line-too-long
                     "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB",
                     "unsafe",
-                    sorted([
+                    [
                         ".backoff",
                         ".has_more",
                         ".items",
@@ -117,31 +121,31 @@ def expected_filters():
                         "shallow_user.link",
                         "shallow_user.reputation",
                         "shallow_user.user_type",
-                    ]),
+                    ],
                 ),
                 (
                     "!6aC-iR(QLBu-5SKm",
                     "safe",
-                    sorted([
+                    [
                         ".backoff",
                         ".has_more",
                         ".items",
                         ".quota_remaining",
                         "answer.question_id",
-                    ]),
+                    ],
                 ),
-            ],
-            key=lambda filter_: filter_[0],
-        )
-        if is_filter_type(filter_type)
-    ]
+            ]
+            if is_filter_type(filter_type)
+        ),
+        key=lambda f: f.filter or "",
+    )
 
 
 @pytest.mark.parametrize(
-    "defined, expected",
-    [("defined_filters", "expected_filters")],
+    ("custom", "defined"),
+    [("custom_filters", "defined_filters")],
 )
-def test_filters(defined, expected, request):
-    defined = request.getfixturevalue(defined)
-    expected = request.getfixturevalue(expected)
-    assert defined == expected
+def test_filters(custom, defined, request):
+    actual = request.getfixturevalue(custom)
+    expected = request.getfixturevalue(defined)
+    assert actual == expected

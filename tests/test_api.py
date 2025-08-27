@@ -1,19 +1,23 @@
-import warnings
 from http import HTTPMethod
+from pprint import pprint
 
-import niquests as requests
 import pytest
+from requests import HTTPError
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import *
+from stackexchange.model_extend import (
+    CreateFilterParameters,
+    SimulateErrorParameters,
+)
+from stackexchange.serdes import query_converter
 
 
-@pytest.fixture(scope="module")
-def api():
+@pytest.fixture(scope="module", name="api")
+def api_fixture():
     return StackExchangeApi()
 
 
-def test_singleton(api):
+def test_singleton_metaclass(api):
     api1 = StackExchangeApi(api_key="key", access_token="token")
     api2 = StackExchangeApi(api_key="key", access_token="token")
     assert api is not api1
@@ -21,11 +25,10 @@ def test_singleton(api):
 
 
 def test_simulate_error(api):
-    with pytest.raises(requests.HTTPError) as err:
+    with pytest.raises(HTTPError) as err:
         api.simulate_error(SimulateErrorParameters(id=404))
-    assert (hasattr(err.value, "response")
-            and err.value.response is not None
-            and err.value.response.json() == {
+    assert ((error_response := err.value.response) is not None
+            and error_response.json() == {
                 "error_id": 404,
                 "error_name": "no_method",
                 "error_message": "simulated",
@@ -34,9 +37,8 @@ def test_simulate_error(api):
 
 # An easier alternative to https://api.stackexchange.com/docs/create-filter
 # for writing complex filters from scratch.
-@pytest.mark.skip("for development purposes only")
-def test_create_filter(api):
-    new_filter = api.create_filter(
+def test_create_filter_method_post(api):
+    created_filter = api.create_filter(
         CreateFilterParameters(
             include=[
                 # You should almost always include these fields in the filter:
@@ -55,4 +57,6 @@ def test_create_filter(api):
         ),
         http_method=HTTPMethod.POST,
     )
-    warnings.warn(UserWarning(repr(new_filter)))
+    pprint(query_converter.unstructure(created_filter),
+           indent=2,
+           sort_dicts=False)

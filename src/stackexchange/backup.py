@@ -1,44 +1,69 @@
-from argparse import (
-    ArgumentParser,
-    ArgumentTypeError,
-    Namespace,
-)
-from dataclasses import dataclass
-from os import PathLike
+from argparse import ArgumentParser, Namespace
+from collections.abc import Sequence
+from os import PathLike, scandir
 from pathlib import Path
-from typing import Literal, cast
+from shutil import rmtree
+from typing import (
+    Literal,
+    TypeAlias,
+    cast,
+    get_args,
+)
 
-from ruamel.yaml import YAML
+from attrs import (
+    Factory,
+    define,
+    field,
+)
+from urllib3.util import parse_url
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import *
+from stackexchange.model_extend import (
+    Answer,
+    AnswerMetadata,
+    AnswersOnUsersParameters,
+    AssociatedUsersParameters,
+    Question,
+    QuestionMetadata,
+    QuestionsByIdsParameters,
+    QuestionsOnUsersParameters,
+    SitesParameters,
+)
+from stackexchange.serdes import metadata_converter, query_converter
 
 __all__ = [
-    "NetworkUserSlim",
+    "NetworkUserInfo",
     "get_network_users",
     "acquire_missing_network_users",
-    "backup_questions",
-    "backup_answers",
-    "get_post_dir",
-    "create_markdown_file",
+    "backup_user_questions",
+    "backup_user_answers",
+    "create_output_file",
+    "get_output_path",
 ]
 
-_api = StackExchangeApi()
-yaml = YAML(pure=True)
+OutputFormat: TypeAlias = Literal["markdown", "json"]
 
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class NetworkUserSlim:
+@define(frozen=True, kw_only=True)
+class NetworkUserInfo:
     site_domain_name: str
     user_id: int
+    user_question_ids: set[int] = field(default=Factory(set[int]), eq=False)
+
+
+api = StackExchangeApi()
 
 
 def main() -> None:
     args = parse_arguments()
     backup_root = Path(args.out_dir, f"stack_user_{args.account_id}").resolve()
     backup_root.mkdir(exist_ok=True)
-    global _api  # pylint: disable=global-statement
-    _api = StackExchangeApi(api_key=args.api_key, limit_rate=args.limit_rate)
+    if args.clean:
+        for entry in scandir(backup_root):
+            if entry.is_dir() and not entry.name.startswith("."):
+                rmtree(entry.path)
+    global api  # pylint: disable=global-statement
+    api = StackExchangeApi(api_key=args.api_key, limit_rate=args.limit_rate)
     network_users = get_network_users(args.account_id, args.no_meta)
     print(f"Found {len(network_users)} Stack Exchange sites associated with "
           + f"https://stackexchange.com/users/{args.account_id}/")
@@ -48,30 +73,37 @@ def main() -> None:
               + f"({network_user.site_domain_name})...",
               end="",
               flush=True)
-        backup_questions(network_user, backup_root)
+        backup_user_questions(network_user, backup_root, args.format)
         print("Done.")
         print("Downloading and writing answers from site "
               + f"{i}/{len(network_users)} "
               + f"({network_user.site_domain_name})...",
               end="",
               flush=True)
-        backup_answers(network_user, backup_root)
+        backup_user_answers(network_user, backup_root, args.format)
         print("Done.")
 
 
-def parse_arguments() -> Namespace:
-    parser = ArgumentParser()
+def parse_arguments(args: Sequence[str] | None = None) -> Namespace:
+    parser = ArgumentParser(allow_abbrev=False)
     parser.add_argument(
         "--account-id",
         type=int,
         required=True,
-        help="account ID",
+        help="user account ID on stackexchange.com",
     )
     parser.add_argument(
         "--out-dir",
         default=".",
         type=str,
-        help="output directory (default: %(default)s)",
+        help="output directory (defaults to the current working directory)",
+    )
+    parser.add_argument(
+        "--format",
+        default="markdown",
+        type=str,
+        choices=get_args(OutputFormat),
+        help="output file format (default: %(default)s)",
     )
     parser.add_argument(
         "--no-meta",
@@ -79,35 +111,39 @@ def parse_arguments() -> Namespace:
         help="do not back up posts on meta sites",
     )
     parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="remove files from the stack_user_id subdirectory before back up",
+    )
+    parser.add_argument(
         "--api-key",
         default=StackExchangeApi.API_KEY,
         type=str,
-        help="API key",
+        help="API key (for debugging only)",
     )
     parser.add_argument(
         "--limit-rate",
         default=10,
         type=int,
-        help="Maximum request rate in requests per second (default: %(default)d)",
+        help="maximum request rate in requests per second within the integer "
+             + f"range of 1 and {StackExchangeApi.MAX_REQUESTS_PER_SECOND} "
+             + "inclusive (default: %(default)d)",
     )
-    args = parser.parse_args()
-    validate_parsed_arguments(args)
-    return args
+    parsed_args = parser.parse_args(args)
+    validate_parsed_arguments(parsed_args, parser)
+    return parsed_args
 
 
-def validate_parsed_arguments(args: Namespace) -> None:
-    if not 0 < args.limit_rate <= StackExchangeApi.MAX_REQUESTS_PER_SECOND:
-        raise ArgumentTypeError(f"invalid int value: '{args.limit_rate}'")
+def validate_parsed_arguments(args: Namespace, parser: ArgumentParser) -> None:
+    if not 1 <= args.limit_rate <= StackExchangeApi.MAX_REQUESTS_PER_SECOND:
+        msg = ("argument --limit-rate: out of range int value: "
+               + f"'{args.limit_rate}'")
+        parser.error(msg)
 
 
-def get_network_users(account_id: int, no_meta: bool) -> set[NetworkUserSlim]:
-    """
-
-    :param account_id:
-    :param no_meta:
-    :return:
-    """
-    associated_users = _api.associated_users(
+def get_network_users(account_id: int, no_meta: bool = False) \
+        -> set[NetworkUserInfo]:
+    associated_users = api.associated_users(
         AssociatedUsersParameters(
             ids=[account_id],
             filter="!2SUoF4c)sOul00Zq",
@@ -116,24 +152,25 @@ def get_network_users(account_id: int, no_meta: bool) -> set[NetworkUserSlim]:
                        else ["main_site", "meta_site"]),
         )
     )
-    network_users = set[NetworkUserSlim](
-        NetworkUserSlim(
-            site_domain_name=associated_user.site_url.host,
+    # noinspection PyUnboundLocalVariable
+    network_users = set[NetworkUserInfo](
+        NetworkUserInfo(
+            site_domain_name=site_host,
             user_id=associated_user.user_id,
         )
         for associated_user in associated_users
         if associated_user.user_id
         and associated_user.site_url
-        and associated_user.site_url.host
-        and (not no_meta or associated_user.site_url.host not in
-             ("meta.stackexchange.com", "stackapps.com"))
+        and (site_host := parse_url(associated_user.site_url).host)
+        and (not no_meta or site_host not in
+             {"meta.stackexchange.com", "stackapps.com"})
     )
     if not no_meta:
         acquire_missing_network_users(network_users)
     return network_users
 
 
-def acquire_missing_network_users(network_users: set[NetworkUserSlim]) -> None:
+def acquire_missing_network_users(network_users: set[NetworkUserInfo]) -> None:
     """
     Apply fix for :meth:`StackExchangeApi.associated_users` not
     returning results for meta sites.
@@ -143,32 +180,31 @@ def acquire_missing_network_users(network_users: set[NetworkUserSlim]) -> None:
     """
     users_dict = {user.site_domain_name: user.user_id
                   for user in network_users}
-    for site in _api.sites(SitesParameters()):
+    for site in api.sites(SitesParameters()):
         if (site.site_type == "main_site"
                 and site.site_url
-                and site.site_url.host in users_dict):
+                and (site_host := parse_url(site.site_url).host)
+                in users_dict):
             for related_site in site.related_sites or []:
                 if (related_site.relation == "meta"
                         and related_site.site_url
-                        and related_site.site_url.host):
+                        and (
+                                related_site_host
+                                := parse_url(related_site.site_url).host
+                        )):
                     network_users.add(
-                        NetworkUserSlim(
-                            site_domain_name=related_site.site_url.host,
-                            user_id=users_dict[site.site_url.host],
+                        NetworkUserInfo(
+                            site_domain_name=related_site_host,
+                            user_id=users_dict[site_host],
                         )
                     )
 
 
-def backup_questions(network_user: NetworkUserSlim,
-                     backup_root: str | PathLike[str]) -> None:
-    """
-
-    :param network_user:
-    :param backup_root:
-    :return:
-    """
+def backup_user_questions(network_user: NetworkUserInfo,
+                          backup_root: str | PathLike[str],
+                          output_format: OutputFormat = "markdown") -> None:
     f = "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB"
-    questions = _api.questions_on_users(
+    questions = api.questions_on_users(
         QuestionsOnUsersParameters(
             ids=[network_user.user_id],
             site=network_user.site_domain_name,
@@ -176,104 +212,115 @@ def backup_questions(network_user: NetworkUserSlim,
         )
     )
     for question in questions:
-        create_markdown_file(network_user, question, backup_root, "q")
-        for answer in question.answers or []:
-            create_markdown_file(network_user, answer, backup_root, "q")
+        if question.question_id is not None:
+            network_user.user_question_ids.add(question.question_id)
+            create_output_file(network_user,
+                               backup_root,
+                               output_format,
+                               "q",
+                               question)
+            for answer in question.answers or []:
+                create_output_file(network_user,
+                                   backup_root,
+                                   output_format,
+                                   "q",
+                                   answer)
 
 
-def backup_answers(network_user: NetworkUserSlim,
-                   backup_root: str | PathLike[str]) -> None:
-    """
-
-    :param network_user:
-    :param backup_root:
-    :return:
-    """
-    answers = _api.answers_on_users(
+def backup_user_answers(network_user: NetworkUserInfo,
+                        backup_root: str | PathLike[str],
+                        output_format: OutputFormat = "markdown") -> None:
+    answers = api.answers_on_users(
         AnswersOnUsersParameters(
             ids=[network_user.user_id],
             site=network_user.site_domain_name,
             filter="!6aC-iR(QLBu-5SKm",
         )
     )
-    not_my_question_ids = [
-        answer.question_id
-        for answer in answers
-        if answer.question_id is not None
-           and not (get_post_dir(network_user, answer, backup_root, "q")
-                    .exists())
-    ]
+    not_my_question_ids = ({answer.question_id for answer in answers
+                            if answer.question_id is not None}
+                           - network_user.user_question_ids)
     if not not_my_question_ids:
         return
     f = "r8cwHZB3p97RraWJSdBqs7HCWXUCebDx9Wuhn_ChbmNDTEZ3_1lkd3suiMKEh6U-zwe.EML1(4mmULGTB"
-    questions = _api.questions_by_ids(
+    questions = api.questions_by_ids(
         QuestionsByIdsParameters(
-            ids=not_my_question_ids,
+            ids=list(not_my_question_ids),
             site=network_user.site_domain_name,
             filter=f,
         )
     )
     for question in questions:
-        create_markdown_file(network_user, question, backup_root, "a")
+        create_output_file(network_user,
+                           backup_root,
+                           output_format,
+                           "a",
+                           question)
         for answer in question.answers or []:
-            create_markdown_file(network_user, answer, backup_root, "a")
+            create_output_file(network_user,
+                               backup_root,
+                               output_format,
+                               "a",
+                               answer)
 
 
-def get_post_dir(network_user: NetworkUserSlim,
-                 post: Question | Answer,
-                 backup_root: str | PathLike[str],
-                 contribution_type: Literal["a", "q"]) -> Path:
-    """
+def create_output_file(network_user: NetworkUserInfo,
+                       backup_root: str | PathLike[str],
+                       output_format: OutputFormat,
+                       contribution_type: Literal["a", "q"],
+                       post: Question | Answer) -> None:
+    output_file = get_output_path(network_user,
+                                  backup_root,
+                                  output_format,
+                                  contribution_type,
+                                  post)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    with output_file.open(mode="w", encoding="utf-8", newline="") as f:
+        match output_format:
+            case "markdown":
+                post_dict = query_converter.unstructure(post)
+                match post:
+                    case Question():
+                        frontmatter = metadata_converter.structure(
+                            post_dict,
+                            QuestionMetadata,
+                        )
+                    case Answer():
+                        frontmatter = metadata_converter.structure(
+                            post_dict,
+                            AnswerMetadata,
+                        )
+                if frontmatter:
+                    metadata_converter.dumps(frontmatter, f)
+                if post.body_markdown:
+                    f.write(post.body_markdown)
+            case "json":
+                f.write(query_converter.dumps(post, indent=2))
 
-    :param network_user:
-    :param post:
-    :param backup_root:
-    :param contribution_type:
-    :return:
-    """
-    post_dir = (Path(backup_root,
-                     network_user.site_domain_name,
-                     contribution_type,
-                     str(post.question_id))
-                .resolve())
-    post_dir.relative_to(backup_root)
-    return post_dir
 
-
-def create_markdown_file(network_user: NetworkUserSlim,
-                         post: Question | Answer,
-                         backup_root: str | PathLike[str],
-                         contribution_type: Literal["a", "q"]) -> None:
-    """
-
-    :param network_user:
-    :param post:
-    :param backup_root:
-    :param contribution_type:
-    :return:
-    """
-    md_name = "index" if isinstance(post, Question) else str(post.answer_id)
-    post_dir = get_post_dir(network_user, post, backup_root, contribution_type)
-    md_file = Path(post_dir, md_name).with_suffix(".md")
-    md_file.parent.mkdir(parents=True, exist_ok=True)
-    with md_file.open(mode="w", encoding="utf-8", newline="") as f:
-        if isinstance(post, Question):
-            frontmatter = (QuestionMetadata
-                           .model_validate(post.model_dump())
-                           .model_dump())
-        else:
-            frontmatter = (AnswerMetadata
-                           .model_validate(post.model_dump())
-                           .model_dump())
-        if frontmatter:
-            global yaml  # pylint: disable=global-statement
-            try:
-                yaml.dump(frontmatter, f, transform=lambda s: f"---\n{s}---\n")
-            except:  # noqa pylint: disable=bare-except
-                # https://yaml.dev/doc/ruamel.yaml/api/#top
-                yaml = YAML(pure=True)
-        if post.body_markdown:
-            f.write(post.body_markdown)
+def get_output_path(network_user: NetworkUserInfo,
+                    backup_root: str | PathLike[str],
+                    output_format: OutputFormat,
+                    contribution_type: Literal["a", "q"],
+                    post: Question | Answer) -> Path:
+    out_dir = (Path(backup_root,
+                    network_user.site_domain_name,
+                    contribution_type,
+                    str(post.question_id))
+               .resolve())
+    out_dir.relative_to(backup_root)
+    match output_format:
+        case "markdown":
+            suffix = ".md"
+        case "json":
+            suffix = ".json"
+    match post:
+        case Question():
+            basename = "index"
+        case Answer():
+            basename = str(post.answer_id)
+    output_file = Path(out_dir, basename).with_suffix(suffix)
+    return output_file
 
 
 if __name__ == "__main__":
