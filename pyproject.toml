@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2025.08.27"
+version = "2025.09.12"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
 readme = "./README.md"
 requires-python = ">= 3.12"
@@ -38,9 +38,9 @@ classifiers = [
 urls.source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
     "attrs >= 24.3.0", # https://www.attrs.org/en/stable/changelog.html
-    "cattrs >= 25.1.0", # https://catt.rs/en/stable/history.html
+    "cattrs[pyyaml] >= 25.2.0", # https://catt.rs/en/stable/history.html
     "requests >= 2.32.4", # https://requests.readthedocs.io/en/latest/community/updates/#release-history
-    "ruamel.yaml >= 0.18.10", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
+    "ruamel.yaml >= 0.18.13", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
 ]
 
 [dependency-groups]
@@ -48,7 +48,7 @@ dev = [
     "datamodel-code-generator >= 0.33.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
     "openapi-spec-validator >= 0.7.2", # https://github.com/python-openapi/openapi-spec-validator/releases
     "pylint >= 3.3.8, < 4", # https://pylint.readthedocs.io/en/latest/whatsnew/3/index.html
-    "ruff >= 0.12.10", # https://github.com/astral-sh/ruff/releases
+    "ruff >= 0.13.0", # https://github.com/astral-sh/ruff/releases
 ]
 sit = [
     "pytest >= 8.4.0, < 9", # https://docs.pytest.org/en/stable/changelog.html
@@ -69,7 +69,7 @@ all = [
 ]
 
 [tool.bumpver]
-current_version = "2025.08.27"
+current_version = "2025.09.12"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
