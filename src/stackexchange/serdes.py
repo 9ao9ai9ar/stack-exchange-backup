@@ -1,5 +1,4 @@
 import datetime
-import errno
 import functools
 from collections.abc import Callable, Generator
 from typing import (
@@ -204,11 +203,8 @@ def epoch_time_to_date_str(seconds_since_epoch: int | None) -> str | None:
             return (datetime.datetime
                     .fromtimestamp(seconds_since_epoch, tz=datetime.UTC)
                     .strftime("%Y-%m-%dT%H:%M:%SZ"))
-        except (OverflowError, OSError) as e:
-            if isinstance(e, OverflowError) or e.errno == errno.EINVAL:
-                return f"{seconds_since_epoch} seconds since the Unix epoch"
-            else:
-                raise e
+        except (OverflowError, ValueError, OSError):
+            return f"{seconds_since_epoch} seconds since the Unix epoch"
     return None
 
 
