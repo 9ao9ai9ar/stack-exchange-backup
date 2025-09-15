@@ -8,7 +8,7 @@ from typing import (
 import pytest
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import (
+from stackexchange.model import (
     BakedInFilter,
     Filter,
     ReadFilterParameters,

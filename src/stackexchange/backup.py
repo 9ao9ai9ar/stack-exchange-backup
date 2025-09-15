@@ -18,7 +18,7 @@ from attrs import (
 from urllib3.util import parse_url
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import (
+from stackexchange.model import (
     Answer,
     AnswerMetadata,
     AnswersOnUsersParameters,

@@ -6,7 +6,7 @@ import pytest
 
 from stackexchange.api import StackExchangeApi
 # noinspection PyProtectedMember
-from stackexchange.model_extend import (
+from stackexchange.model import (
     Comment,
     Paging,
     Parameters,

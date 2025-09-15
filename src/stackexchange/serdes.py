@@ -22,7 +22,7 @@ from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import LiteralScalarString
 
 # noinspection PyProtectedMember
-from stackexchange.model_extend import (
+from stackexchange.model import (
     CommentMetadata,
     Metadata,
     Parameters,

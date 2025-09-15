@@ -5,7 +5,7 @@ import pytest
 from requests import HTTPError
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import (
+from stackexchange.model import (
     CreateFilterParameters,
     SimulateErrorParameters,
 )

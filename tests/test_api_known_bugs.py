@@ -1,7 +1,7 @@
 import pytest
 
 from stackexchange.api import StackExchangeApi
-from stackexchange.model_extend import AssociatedUsersParameters, Paging
+from stackexchange.model import AssociatedUsersParameters, Paging
 
 
 @pytest.fixture(scope="module", name="api")

@@ -23,7 +23,7 @@ import requests
 import requests.adapters
 import urllib3
 
-from stackexchange.model_extend import *
+from stackexchange.model import *
 # noinspection PyProtectedMember
 from stackexchange.serdes import (
     query_converter,
