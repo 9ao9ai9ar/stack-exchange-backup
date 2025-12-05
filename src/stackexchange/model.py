@@ -1,6 +1,7 @@
 # ruff: noqa: F722
 # pylint: disable=too-few-public-methods
 import datetime
+import math
 from abc import ABCMeta
 from typing import (
     ClassVar,
@@ -123,7 +124,7 @@ content_license_options = {
             "CC BY-SA 4.0",
             parse_url("https://creativecommons.org/licenses/by-sa/4.0/"),
             datetime.datetime(2018, 5, 2, tzinfo=datetime.UTC).timestamp(),
-            float("infinity"),
+            math.inf,
         ),
         ContentLicenseOption(
             "CC BY-SA 3.0",
@@ -134,7 +135,7 @@ content_license_options = {
         ContentLicenseOption(
             "CC BY-SA 2.5",
             parse_url("https://creativecommons.org/licenses/by-sa/2.5/"),
-            -float("infinity"),
+            -math.inf,
             datetime.datetime(2011, 4, 8, tzinfo=datetime.UTC).timestamp(),
         ),
     )

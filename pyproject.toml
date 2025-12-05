@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2025.09.12"
+version = "2025.12.05"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
 readme = "./README.md"
 requires-python = ">= 3.12"
@@ -28,34 +28,34 @@ classifiers = [
     "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    #    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.14",
     #    "Programming Language :: Python :: 3.15",
     "Programming Language :: Python :: Implementation :: CPython",
     #    "Programming Language :: Python :: Implementation :: PyPy",
-    #    "Programming Language :: Python :: Implementation :: GraalPy",
+    "Programming Language :: Python :: Implementation :: GraalPy",
     "Topic :: System :: Archiving :: Backup",
 ]
 urls.source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
-    "attrs >= 24.3.0", # https://www.attrs.org/en/stable/changelog.html
-    "cattrs[pyyaml] >= 25.2.0", # https://catt.rs/en/stable/history.html
+    "attrs >= 25.4.0", # https://www.attrs.org/en/stable/changelog.html
+    "cattrs[pyyaml] >= 25.3.0", # https://catt.rs/en/stable/history.html
     "requests >= 2.32.4", # https://requests.readthedocs.io/en/latest/community/updates/#release-history
-    "ruamel.yaml >= 0.18.13", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
+    "ruamel.yaml >= 0.18.16", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
 ]
 
 [dependency-groups]
 dev = [
-    "datamodel-code-generator >= 0.33.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
+    "datamodel-code-generator >= 0.40.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
     "openapi-spec-validator >= 0.7.2", # https://github.com/python-openapi/openapi-spec-validator/releases
-    "pylint >= 3.3.8, < 4", # https://pylint.readthedocs.io/en/latest/whatsnew/3/index.html
-    "ruff >= 0.13.0", # https://github.com/astral-sh/ruff/releases
+    "pylint >= 4.0.4, < 5", # https://pylint.readthedocs.io/en/latest/whatsnew/4/index.html
+    "ruff >= 0.14.8", # https://github.com/astral-sh/ruff/releases
 ]
 sit = [
-    "pytest >= 8.4.0, < 9", # https://docs.pytest.org/en/stable/changelog.html
+    "pytest >= 9.0.0, < 10", # https://docs.pytest.org/en/stable/changelog.html
 ]
 uat = [
     "memory-profiler >= 0.61.0",
-    "memray >= 1.18.0 ; sys_platform == 'linux' or sys_platform == 'darwin'", # https://bloomberg.github.io/memray/changelog.html
+    "memray >= 1.19.1 ; sys_platform == 'linux' or sys_platform == 'darwin'", # https://bloomberg.github.io/memray/changelog.html
 ]
 prod = [
     "bumpver >= 2025.1131", # https://github.com/mbarkhau/bumpver/blob/master/CHANGELOG.md
@@ -69,7 +69,7 @@ all = [
 ]
 
 [tool.bumpver]
-current_version = "2025.09.12"
+current_version = "2025.12.05"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
@@ -80,7 +80,11 @@ commit = false
 ]
 
 [tool.datamodel-codegen]
-formatters = ["isort", "ruff-check", "ruff-format"]
+formatters = [
+    "isort",
+    "ruff-check",
+    "ruff-format",
+]
 input = "./resources/openapi/openapi.yaml"
 input-file-type = "openapi"
 output = "./src/stackexchange/generated/_model_openapi.py"
@@ -129,6 +133,9 @@ enable = [
 fail-under = 9
 ignore-paths = [".*/generated"]
 jobs = 0
+load-plugins = [
+    "pylint.extensions.code_style",
+]
 output-format = "colorized"
 
 [tool.pylint.design]
@@ -160,10 +167,14 @@ reportUnknownMemberType = false
 reportMissingParameterType = false
 reportMissingTypeArgument = false
 
-[tool.pytest.ini_options]
-addopts = "-vvr aP --tb=short --capture=sys"
+[tool.pytest]
+addopts = [
+    "-vvr aP",
+    "--tb=short",
+    "--capture=sys",
+]
+strict = true
 testpaths = ["./tests"]
-xfail_strict = true
 
 [tool.ruff]
 line-length = 79

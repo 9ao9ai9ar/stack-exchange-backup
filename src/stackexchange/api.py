@@ -46,8 +46,7 @@ class SingletonMeta(type):
         cls._init[cls] = dct.get("__init__", None)
 
     def __call__(cls, *args, **kwargs):
-        init = cls._init[cls]
-        if init is not None:
+        if (init := cls._init[cls]) is not None:
             bound = inspect.signature(init).bind(None, *args, **kwargs)
             bound.apply_defaults()
             callargs = bound.arguments.items()

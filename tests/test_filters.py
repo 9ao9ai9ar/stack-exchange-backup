@@ -42,7 +42,7 @@ def defined_filters_fixture():
                 included_fields=sorted(included_fields),
             )
             for filter_, filter_type, included_fields in
-            [
+            (
                 (
                     "!-0ttWpKaHtrB(oS",
                     "safe",
@@ -134,7 +134,7 @@ def defined_filters_fixture():
                         "answer.question_id",
                     ],
                 ),
-            ]
+            )
             if is_filter_type(filter_type)
         ),
         key=lambda f: f.filter or "",
