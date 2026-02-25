@@ -45,7 +45,6 @@ __all__ = [
     "ShallowUser",
     "Styling",
     # Component parameters (re-exported from .generated._model_openapi)
-    "Auth",
     "Paging",
     "Complex",
     # Types

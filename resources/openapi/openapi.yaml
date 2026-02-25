@@ -54,24 +54,6 @@ components:
     ResponseWrapper:
       $ref: './components/response_wrapper.yaml'
   parameters:
-    Auth:
-      name: auth
-      in: query
-      schema:
-        externalDocs:
-          url: 'https://api.stackexchange.com/docs/throttle'
-        type: object
-        description: >
-          More information can be found at https://api.stackexchange.com/docs/authentication.
-        properties:
-          key:
-            type: string
-          access_token:
-            type: string
-            format: password
-        dependentRequired:
-          access_token:
-            - key
     Filter:
       name: filter
       in: query
@@ -184,6 +166,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ResponseWrapper'
+  securitySchemes:
+    ApiKeyAuth:
+      type: http
+      description: >
+        More information can be found at https://api.stackexchange.com/docs/authentication.
+      scheme: bearer
 
 paths:
   /questions/{ids}:
@@ -197,7 +185,6 @@ paths:
       operationId: questions-by-ids
       parameters:
         - $ref: '#/components/parameters/Ids'
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Site'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
@@ -213,7 +200,6 @@ paths:
       operationId: answers-on-users
       parameters:
         - $ref: '#/components/parameters/Ids'
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Site'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
@@ -229,7 +215,6 @@ paths:
       operationId: questions-on-users
       parameters:
         - $ref: '#/components/parameters/Ids'
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Site'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
@@ -249,7 +234,6 @@ paths:
           required: true
           schema:
             type: integer
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
   /filters/create:
     get:
@@ -261,7 +245,6 @@ paths:
         url: 'https://api.stackexchange.com/docs/create-filter'
       operationId: create-filter
       parameters:
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
         - name: include
           in: query
@@ -305,7 +288,6 @@ paths:
             items:
               type: string
           example: default;withbody
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
   /sites:
@@ -318,7 +300,6 @@ paths:
         url: 'https://api.stackexchange.com/docs/sites'
       operationId: sites
       parameters:
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
   /users/{ids}/associated:
@@ -332,7 +313,6 @@ paths:
       operationId: associated-users
       parameters:
         - $ref: '#/components/parameters/Ids'
-        - $ref: '#/components/parameters/Auth'
         - $ref: '#/components/parameters/Filter'
         - $ref: '#/components/parameters/Paging'
         - name: types
@@ -345,6 +325,9 @@ paths:
                 - main_site
                 - meta_site
             description: Specify, semicolon delimited, main_site or meta_site to filter by site.
+
+security:
+    - ApiKeyAuth: []
 
 tags:
   - name: Per-Site Methods

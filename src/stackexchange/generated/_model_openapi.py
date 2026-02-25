@@ -79,11 +79,6 @@ class Answer:
 
 @dataclass(kw_only=True)
 class AnswersOnUsersParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     site: str | None = None
     """
     Per-site methods operates on a single site at a time, identified by the site parameter. 
@@ -103,11 +98,6 @@ class AnswersOnUsersParametersQuery:
 
 @dataclass(kw_only=True)
 class AssociatedUsersParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     filter: str | None = None
     """
     Filters allow applications to reduce API responses to just the fields they are concerned with, 
@@ -119,17 +109,6 @@ class AssociatedUsersParametersQuery:
     """
     Specify, semicolon delimited, main_site or meta_site to filter by site.
     """
-
-
-@dataclass(kw_only=True)
-class Auth:
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
-
-    key: str | None = None
-    access_token: str | None = None
 
 
 @dataclass(kw_only=True)
@@ -275,11 +254,6 @@ class Complex:
 
 @dataclass(kw_only=True)
 class CreateFilterParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     filter: str | None = None
     """
     Filters allow applications to reduce API responses to just the fields they are concerned with, 
@@ -525,11 +499,6 @@ class Question:
 
 @dataclass(kw_only=True)
 class QuestionsByIdsParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     site: str | None = None
     """
     Per-site methods operates on a single site at a time, identified by the site parameter. 
@@ -549,11 +518,6 @@ class QuestionsByIdsParametersQuery:
 
 @dataclass(kw_only=True)
 class QuestionsOnUsersParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     site: str | None = None
     """
     Per-site methods operates on a single site at a time, identified by the site parameter. 
@@ -573,11 +537,6 @@ class QuestionsOnUsersParametersQuery:
 
 @dataclass(kw_only=True)
 class ReadFilterParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     filter: str | None = None
     """
     Filters allow applications to reduce API responses to just the fields they are concerned with, 
@@ -672,11 +631,6 @@ class ShallowUser:
 
 @dataclass(kw_only=True)
 class SimulateErrorParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     filter: str | None = None
     """
     Filters allow applications to reduce API responses to just the fields they are concerned with, 
@@ -722,11 +676,6 @@ class Site:
 
 @dataclass(kw_only=True)
 class SitesParametersQuery:
-    auth: Auth | None = None
-    """
-    More information can be found at https://api.stackexchange.com/docs/authentication.
-
-    """
     filter: str | None = None
     """
     Filters allow applications to reduce API responses to just the fields they are concerned with, 

@@ -58,8 +58,13 @@
 5. Install `stack-exchange-backup` as a local Python package.
 
    ```shell
-   python -m pip install -r ./requirements.txt
    python -m pip install .
+   ```
+
+   If the script fails to run due to changing dependencies, you may install the last known working versions.
+
+   ```shell
+   python -m pip install -r ./requirements.txt
    ```
 
 ## Usage
@@ -138,7 +143,7 @@ stack_user_<ACCOUNT_ID>/
   ...
 ```
 
-### File Layout (Markdown)
+### File Layout
 
 The default Markdown output file layout contains a YAML front matter block, 
 which is a way to add metadata to generated web pages in many static site generators.
@@ -181,15 +186,15 @@ comments:
 
 ### Omissions
 
-| Items                       | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|-----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Deleted posts               | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| (Some) community wiki posts | The API does not seem to provide an easy or reliable way to retrieve community wikis of which a user is a co-author but not the original poster. The authorships of community wikis are also difficult to programmatically determine and be given proper attributions. Additional reading: *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*                                                                                                                                                                     |
-| (Some) migrated posts       | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. Additional reading: *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*                                                                                                                                                                                                                                                                    |
-| Answers to merged questions | In this rather rare occurrence, all of the merged question's answers become answers to the target question. Although the combined answers to the target question can be located, it may be confusing to include them as they may quote from the target question and have an accepted status that the owner of the merged question might not agree with. The inclusion of this category of items may be revisited in the future. Additional reading: *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*               |
-| Area 51 posts               | [Area 51 Discussions is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                       |
-| Articles                    | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since its inception in 2021. Therefore, I have concluded it's not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
-| Saves                       | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                                    |
+| Items                       | Reason                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|-----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Deleted posts               | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| (Some) community wiki posts | The API does not seem to provide an easy or reliable way to retrieve community wikis of which a user is a co-author but not the original poster. The authorships of community wikis are also difficult to programmatically determine and be given proper attributions. Additional reading: *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*                                                                                                                                                                      |
+| (Some) migrated posts       | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. Additional reading: *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*                                                                                                                                                                                                                                                                     |
+| Answers to merged questions | In this rather rare occurrence, all of the merged question's answers become answers to the target question. Although the combined answers to the target question can be retrieved, it may be confusing to include them as they may quote from the target question and have an accepted status that the owner of the merged question might not agree with. The inclusion of this category of items may be revisited in the future. Additional reading: *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*              |
+| Area 51 posts               | [Area 51 Discussions is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Articles                    | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since its inception in 2021. Therefore, I have concluded it is not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
+| Saves                       | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                                     |
 
 ## Related Projects
 
@@ -197,12 +202,12 @@ comments:
 
 As one of the three official gateways to the public data on the Stack Exchange network,
 the API is the most conducive to application development, but is also mired in bugs and limitations.
-Therefore, it'd be a good idea to cross-check or complement the API data with data obtained through other means.
+Therefore, it might be a good idea to cross-check or complement the API data with data obtained through other means.
 
 #### [mhdadk/stack-exchange-backup](https://github.com/mhdadk/stack-exchange-backup)
 
 The original repository from which this fork is derived.
-I'd like to express my thanks to its author, Mahmoud Abdelkhalek,
+I would like to express my thanks to its author, Mahmoud Abdelkhalek,
 for his well-commented code expedited my process of grokking the Stack Exchange API, which,
 while conceptually simple, has its documentation of related topics,
 some insufficiently explained, and the numerous bugs scattered all over the place.
@@ -219,7 +224,7 @@ for running arbitrary queries against public data from the Stack Exchange networ
 There are ready-made queries to export your data to a
 [single HTML file](https://data.stackexchange.com/meta.stackexchange/query/758326)
 or [CSV file](https://data.stackexchange.com/meta.stackexchange/query/1529864),
-but those data are only [refreshed weekly](https://data.stackexchange.com/help#faq),
+but the underlying data are only [refreshed weekly](https://data.stackexchange.com/help#faq),
 as opposed to the data returned by the API, which are [refreshed about once a minute](https://stackapps.com/q/3543).
 
 #### [Pippim Website](https://www.pippim.com/programs/stack.html)
@@ -239,7 +244,7 @@ Therefore, this method of backup has a few major downsides:
 2. Being incomplete, meaning the data dump you download
    is only for the specific site from which you initiated the request.
 3. Being complete, meaning the download size may be humongous, and to get only your data,
-   you'd have to do some non-trivial parsing of the downloaded XML files yourself.
+   you would have to do some non-trivial parsing of the downloaded XML files yourself.
 
 #### [Stack Exchange data dump downloader and transformer](https://github.com/LunarWatcher/se-data-dump-transformer)
 
@@ -274,9 +279,9 @@ I have compiled a list of the parameter types and their associated icons as foll
 
 Except for numbers and dates, the icons are not explained anywhere in the documentation,
 but if you open the inspector in your web browser,
-say when you're on [this page](https://api.stackexchange.com/docs/edit-question),
-and check the `<input>` nodes enclosing the icons you're interested in learning about,
-you'll find that the parameter types are named in the `class` attributes, as `string-type`, `number-type`, etc.
+say when you are on [this page](https://api.stackexchange.com/docs/edit-question),
+and check the `<input>` nodes enclosing the icons you are interested in learning about,
+you will find that the parameter types are named in the `class` attributes, as `string-type`, `number-type`, etc.
 
 ## Support
 
@@ -284,7 +289,7 @@ It is my policy to strive to support, within reason,
 all [non-end-of-life, stable releases](https://devguide.python.org/versions/#status-key) of Python,
 as well as all prominent, up-to-date Python implementations, namely CPython, PyPy and GraalPy.
 If you are a Windows or macOS user, do note that official binaries are not provided for the security releases.
-Thereby, I encourage you to instead install it from either the `defaults` (recommended) 
+Thereby, I encourage you to instead install them from either the `defaults` (recommended) 
 or the `conda-forge` conda channel, by using one of the 
 [conda-compatible tools](https://conda.org/blog/2024-08-14-conda-ecosystem-explained/),
 to benefit from the continuing security fixes.

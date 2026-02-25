@@ -21,6 +21,7 @@ from typing import (
 import attrs
 import requests
 import requests.adapters
+import requests.auth
 import urllib3
 
 from stackexchange.model import *
@@ -75,6 +76,17 @@ def api_method(func):
         return func(*args, **kwargs, initiator=api_method_name)
 
     return wrapper
+
+
+# pylint: disable=too-few-public-methods
+class BearerAuth(requests.auth.AuthBase):
+    def __init__(self, token):
+        self.token = token
+
+    def __call__(self, r):
+        if self.token:
+            r.headers["Authorization"] = "Bearer " + self.token
+        return r
 
 
 # pylint: disable=too-many-instance-attributes
@@ -153,12 +165,7 @@ class StackExchangeApi(metaclass=SingletonMeta):
                 self._respect_quota_remaining()
                 self._respect_backoff(initiator)
                 self._respect_rate_limit()
-                self._attach_authentication_info(params)
-                match method:
-                    case HTTPMethod.GET:
-                        kwargs["params"] = query_converter.unstructure(params)
-                    case _:
-                        kwargs["data"] = query_converter.unstructure(params)
+                self._assign_request_parameters(params, method, kwargs)
                 response = request(method, url, **kwargs)
                 return response
 
@@ -197,10 +204,19 @@ class StackExchangeApi(metaclass=SingletonMeta):
                       + f"{self.limit_rate} requests per second.")
                 time.sleep(1 / self.limit_rate)
 
-    def _attach_authentication_info(self, params: Parameters) -> None:
-        if hasattr(params, "auth") and getattr(params, "auth") is None:
-            setattr(params, "auth", Auth(key=self.api_key,
-                                         access_token=self.access_token))
+    def _assign_request_parameters(self,
+                                   params: Parameters,
+                                   method: str,
+                                   kwargs: dict[str, Any]) -> None:
+        if "auth" not in kwargs:
+            kwargs["auth"] = BearerAuth(self.api_key)
+        if "timeout" not in kwargs:
+            kwargs["timeout"] = (5, 30)
+        match method:
+            case HTTPMethod.GET:
+                kwargs["params"] = query_converter.unstructure(params)
+            case _:
+                kwargs["data"] = query_converter.unstructure(params)
 
     def _process_response[T](self,
                              response: requests.models.Response,
@@ -329,8 +345,6 @@ class StackExchangeApi(metaclass=SingletonMeta):
                         Paging(page=page, pagesize=Parameters.MAX_PAGE_SIZE)
                     )
                 request = self.proxied_request(initiator, params)
-                if not kwargs.get("timeout"):
-                    kwargs["timeout"] = (5, 30)
                 response = request(http_method, url, **kwargs)
                 structured_response \
                     = self._process_response(response, model, initiator)

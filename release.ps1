@@ -25,7 +25,7 @@ uv pip compile --constraints ./constraints.txt --output-file ./requirements.txt 
 uv pip sync ./requirements.txt &&
 uv pip install --editable . --constraints ./constraints.txt --constraints ./requirements.txt --group all &&
 
-python -m openapi_spec_validator --errors all ./resources/openapi/openapi.yaml &&
+python -m openapi_spec_validator --subschema-errors all --validation-errors all ./resources/openapi/openapi.yaml &&
 python -m datamodel_code_generator &&
 
 python -m ruff check &&
