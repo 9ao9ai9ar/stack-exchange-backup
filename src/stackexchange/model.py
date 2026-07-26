@@ -1,4 +1,3 @@
-# ruff: noqa: F722
 # pylint: disable=too-few-public-methods
 import datetime
 import math
@@ -144,14 +143,14 @@ content_license_options = {
 # https://meta.stackexchange.com/q/411264
 def guess_content_license_from_publication_date(lic: str | None, obj) \
         -> str | None:
-    if lic is None:
-        if ((publication_date := getattr(obj, "last_edit_date", None))
-                or (publication_date := getattr(obj, "creation_date", None))):
-            for content_license_option in content_license_options.values():
-                if (content_license_option.starting_date
-                        <= publication_date
-                        < content_license_option.ending_date):
-                    lic = content_license_option.name + "?"
+    if (lic is None
+            and ((publication_date := getattr(obj, "last_edit_date", 0))
+                or (publication_date := getattr(obj, "creation_date", 0)))):
+        for content_license_option in content_license_options.values():
+            if (content_license_option.starting_date
+                    <= publication_date
+                    < content_license_option.ending_date):
+                lic = content_license_option.name + "?"
     return lic
 
 

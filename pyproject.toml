@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stack-exchange-backup"
-version = "2026.02.25"
+version = "2026.07.26"
 description = "Download all your posts on the Stack Exchange network as Markdown files."
 readme = "./README.md"
 requires-python = ">= 3.12"
@@ -40,28 +40,28 @@ classifiers = [
 ]
 urls.source = "https://github.com/9ao9ai9ar/stack-exchange-backup"
 dependencies = [
-    "attrs >= 25.4.0", # https://www.attrs.org/en/stable/changelog.html
+    "attrs >= 26.1.0", # https://www.attrs.org/en/stable/changelog.html
     "cattrs[pyyaml] >= 25.3.0", # https://catt.rs/en/stable/history.html
-    "requests >= 2.32.4", # https://requests.readthedocs.io/en/latest/community/updates/#release-history
+    "requests >= 2.33.0", # https://requests.readthedocs.io/en/latest/community/updates/#release-history
     "ruamel.yaml >= 0.18.16", # https://sourceforge.net/p/ruamel-yaml/code/ci/default/tree/CHANGES
 ]
 
 [dependency-groups]
 dev = [
-    "datamodel-code-generator >= 0.54.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
-    "openapi-spec-validator >= 0.8.1", # https://github.com/python-openapi/openapi-spec-validator/releases
-    "pylint >= 4.0.5, < 5", # https://pylint.readthedocs.io/en/latest/whatsnew/4/index.html
-    "ruff >= 0.15.2", # https://github.com/astral-sh/ruff/releases
+    "datamodel-code-generator >= 0.71.0", # https://github.com/koxudaxi/datamodel-code-generator/releases
+    "openapi-spec-validator >= 0.9.0", # https://github.com/python-openapi/openapi-spec-validator/releases
+    "pylint >= 4.0.6, < 5", # https://pylint.readthedocs.io/en/latest/whatsnew/4/index.html
+    "ruff >= 0.16.0", # https://github.com/astral-sh/ruff/releases
 ]
 sit = [
-    "pytest >= 9.0.0, < 10", # https://docs.pytest.org/en/stable/changelog.html
+    "pytest >= 9.1.0, < 10", # https://docs.pytest.org/en/stable/changelog.html
 ]
 uat = [
     "memory-profiler >= 0.61.0",
-    "memray >= 1.19.1 ; sys_platform == 'linux' or sys_platform == 'darwin'", # https://bloomberg.github.io/memray/changelog.html
+    "memray >= 1.19.3 ; sys_platform == 'linux' or sys_platform == 'darwin'", # https://bloomberg.github.io/memray/changelog.html
 ]
 prod = [
-    "bumpver >= 2025.1131", # https://github.com/mbarkhau/bumpver/blob/master/CHANGELOG.md
+    "bumpver >= 2026.1132", # https://github.com/mbarkhau/bumpver/blob/master/CHANGELOG.md
     "validate-pyproject[all] >= 0.25", # https://validate-pyproject.readthedocs.io/en/latest/changelog.html
 ]
 all = [
@@ -73,7 +73,7 @@ all = [
 
 # https://github.com/mbarkhau/bumpver?tab=readme-ov-file#configuration
 [tool.bumpver]
-current_version = "2026.02.25"
+current_version = "2026.07.26"
 version_pattern = "YYYY.0M.0D[-PATCH]"
 commit = false
 
@@ -192,11 +192,12 @@ extend-exclude = [
 ignore = [
     "F403", # undefined-local-with-import-star
     "F405", # undefined-local-with-import-star-usage
+    "RUF022", # unsorted-dunder-all
 ] # https://docs.astral.sh/ruff/rules/
 
 # https://docs.astral.sh/uv/reference/settings/
 [tool.uv]
-native-tls = true
+system-certs = true
 
 [tool.uv.pip]
 emit-index-url = true

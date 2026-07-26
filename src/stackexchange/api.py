@@ -25,6 +25,7 @@ import requests.auth
 import urllib3
 
 from stackexchange.model import *
+
 # noinspection PyProtectedMember
 from stackexchange.serdes import (
     query_converter,
@@ -38,8 +39,8 @@ __all__ = ["StackExchangeApi"]
 # https://stackoverflow.com/q/6760685
 # https://gist.github.com/wowkin2/3af15bfbf197a14a2b0b2488a1e8c787
 class SingletonMeta(type):
-    _instances = {}
-    _init = {}
+    _instances: ClassVar[dict] = {}
+    _init: ClassVar[dict] = {}
 
     # noinspection PyUnusedLocal
     def __init__(cls, clsname, bases, dct, **kwds):
@@ -55,17 +56,17 @@ class SingletonMeta(type):
         else:
             key = cls
         if key not in cls._instances:
-            cls._instances[key] = (super(SingletonMeta, cls)
+            cls._instances[key] = (super()
                                    .__call__(*args, **kwargs))
         return cls._instances[key]
 
     def __new__(mcs, clsname, bases, dct, **kwds):
-        return (super(SingletonMeta, mcs)
+        return (super()
                 .__new__(mcs, clsname, bases, dct, **kwds))
 
 
 @attrs.define(frozen=True, kw_only=True)
-class PathParamsInfo[T]:
+class PathParamsInfo:
     vector_key: str | None
     path_params: dict[str, Any]
 
@@ -339,6 +340,7 @@ class StackExchangeApi(metaclass=SingletonMeta):
             while has_more:
                 page += 1
                 if auto_pagination:
+                    # ruff: ignore[B010]
                     setattr(
                         params,
                         "paging",
@@ -528,8 +530,7 @@ class StackExchangeApi(metaclass=SingletonMeta):
                       /,
                       params: CreateFilterParameters,
                       *,
-                      http_method: Literal[HTTPMethod.GET]
-                                   | Literal[HTTPMethod.POST] = ...,
+                      http_method: Literal[HTTPMethod.GET, HTTPMethod.POST] = ...,
                       items_only: Literal[False],
                       **kwargs) \
             -> Response[Filter]:
@@ -541,8 +542,7 @@ class StackExchangeApi(metaclass=SingletonMeta):
                       /,
                       params: CreateFilterParameters,
                       *,
-                      http_method: Literal[HTTPMethod.GET]
-                                   | Literal[HTTPMethod.POST] = ...,
+                      http_method: Literal[HTTPMethod.GET, HTTPMethod.POST] = ...,
                       items_only: Literal[True] = ...,
                       **kwargs) \
             -> Filter:
@@ -553,8 +553,7 @@ class StackExchangeApi(metaclass=SingletonMeta):
                       /,
                       params: CreateFilterParameters,
                       *,
-                      http_method: Literal[HTTPMethod.GET]
-                                   | Literal[HTTPMethod.POST] = HTTPMethod.GET,
+                      http_method: Literal[HTTPMethod.GET, HTTPMethod.POST] = HTTPMethod.GET,
                       items_only=True,
                       **kwargs) \
             -> Response[Filter] | Filter:

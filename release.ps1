@@ -4,6 +4,7 @@
 # This is a polyglot script that runs in both a POSIX compliant shell and PowerShell 7+.
 # It assumes the following prerequisites have been met:
 # 1. uv is installed via the standalone installer and in PATH
+#    (set UV_NO_MODIFY_PATH=1 when installing: https://github.com/astral-sh/uv/issues/10413)
 # 2. Node.js is installed and in PATH
 # 3. The current working directory is set to the project root
 # 4. The environment variable SC_GITHUB_TOKEN is set to a valid GitHub token

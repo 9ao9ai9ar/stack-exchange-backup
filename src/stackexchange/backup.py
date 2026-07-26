@@ -41,6 +41,7 @@ __all__ = [
     "get_output_path",
 ]
 
+# ruff: ignore[UP040]
 OutputFormat: TypeAlias = Literal["markdown", "json"]
 
 
@@ -152,7 +153,7 @@ def get_network_users(account_id: int, no_meta: bool = False) \
                        else ["main_site", "meta_site"]),
         )
     )
-    # noinspection PyUnboundLocalVariable
+    # noinspection PyUnboundLocalVariable, bad-argument-type
     network_users = set[NetworkUserInfo](
         NetworkUserInfo(
             site_domain_name=site_host,

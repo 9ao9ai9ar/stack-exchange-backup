@@ -5,6 +5,7 @@ import attrs
 import pytest
 
 from stackexchange.api import StackExchangeApi
+
 # noinspection PyProtectedMember
 from stackexchange.model import (
     Comment,
@@ -17,6 +18,7 @@ from stackexchange.model import (
     parameters,
     path_param,
 )
+
 # noinspection PyProtectedMember
 from stackexchange.serdes import (
     metadata_converter,
@@ -79,7 +81,8 @@ def test_parameters_post_init(api):
                                items_only=False))
         assert ((paging := params.paging) is not None
                 and (pagesize := paging.pagesize) is not None
-                and Parameters.MAX_PAGE_SIZE < len(sites.items) < pagesize)
+                and Parameters.MAX_PAGE_SIZE < len(sites.items or []) < pagesize)
+    # ruff: ignore[BLE001]
     except Exception as e:  # pylint: disable=broad-exception-caught
         warnings.warn(UserWarning(f"sample code unexpectedly failed:\n{e}"))
 

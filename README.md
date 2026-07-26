@@ -191,7 +191,7 @@ comments:
 | Deleted posts               | [The API does not provide a way to retrieve deleted posts](https://stackapps.com/q/1917), even when authenticated.                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | (Some) community wiki posts | The API does not seem to provide an easy or reliable way to retrieve community wikis of which a user is a co-author but not the original poster. The authorships of community wikis are also difficult to programmatically determine and be given proper attributions. Additional reading: *[What are "Community Wiki" posts?](https://meta.stackexchange.com/q/11740)*                                                                                                                                                                      |
 | (Some) migrated posts       | A migrated post can not be permanently linked back to the owner until they register for an account on the target site and associate it to their network profile. Additional reading: *[What is migration and how does it work?](https://meta.stackexchange.com/q/10249)*                                                                                                                                                                                                                                                                     |
-| Answers to merged questions | In this rather rare occurrence, all of the merged question's answers become answers to the target question. Although the combined answers to the target question can be retrieved, it may be confusing to include them as they may quote from the target question and have an accepted status that the owner of the merged question might not agree with. The inclusion of this category of items may be revisited in the future. Additional reading: *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*              |
+| Answers to merged questions | In this rather rare occurrence, all of the merged question's answers become answers to the target question. Although the combined answers to the target question can be retrieved, it may be confusing to include them as they may quote from the target question and have an accepted status that the owner of the merged question might not agree with. Additional reading: *[What is a "merged" question?](https://meta.stackexchange.com/q/158066)*                                                                                      |
 | Area 51 posts               | [Area 51 Discussions is not adequately supported in the API](https://stackapps.com/q/8726), and few people participated on this site.                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Articles                    | Being a part of collectives, articles have only been rolled out to Stack Overflow, and fewer than 200 articles have been [published](https://stackoverflow.com/collectives/articles) to date since its inception in 2021. Therefore, I have concluded it is not worth the effort to add support for backing up articles, despite them still being queryable through the [`/users/{ids}/posts`](https://api.stackexchange.com/docs/posts-on-users) endpoint after [`/articles` has been removed from the API](https://stackapps.com/q/10456). |
 | Saves                       | When public favorites, also briefly known as bookmarks, got reworked into private saves, it was done without coordinated changes to the API, so [it became impossible to query a user's saves through the API](https://meta.stackexchange.com/q/382991).                                                                                                                                                                                                                                                                                     |
@@ -252,6 +252,8 @@ Thankfully, this project exists to address some of the above pain points.
 
 ## Development
 
+### Process
+
 My personal development process for this project is encoded in [`release.ps1`](./release.ps1),
 a polyglot script that is valid in both the POSIX shell and PowerShell.
 In addition to the dependencies specified in [`pyproject.toml`](./pyproject.toml), the script relies on the following utilities:
@@ -282,6 +284,26 @@ but if you open the inspector in your web browser,
 say when you are on [this page](https://api.stackexchange.com/docs/edit-question),
 and check the `<input>` nodes enclosing the icons you are interested in learning about,
 you will find that the parameter types are named in the `class` attributes, as `string-type`, `number-type`, etc.
+
+### Roadmap
+
+#### Alpha
+
+* [ ] Provide a set of jq programs to: select for the data to keep in the backup, 
+and reformat the metadata for better integrations with popular web publishing systems.
+  * Thus redefining the Markdown split-file output as a series of post-processing steps to take 
+  after obtaining the raw JSON output from the API.
+* [ ] Add an option to save all images as files to combat hotlink protection and risk of link rot.
+
+#### Beta
+
+* [ ] Implement a resume-from-failure mechanism with a proper progress meter via `tqdm`.
+
+#### Omega
+
+* [ ] Migrate to Stack Exchange API v3.
+* [ ] Add an option to retrieve all post revisions and turn them into patch files 
+in some compatible mailbox format so they may readily be recorded in source control systems.
 
 ## Support
 

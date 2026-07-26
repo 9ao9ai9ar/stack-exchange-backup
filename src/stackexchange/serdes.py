@@ -11,6 +11,7 @@ import attrs
 import cattrs.preconf.json
 import cattrs.preconf.pyyaml
 from cattrs import Converter, override
+
 # noinspection PyProtectedMember
 from cattrs.gen import (
     is_generic,  # pyright: ignore [reportPrivateImportUsage]
@@ -174,16 +175,16 @@ class RuamelyamlConverter[T](Converter):
                 stream,
                 **kwargs
             )
-        except Exception as e:
+        except Exception:
             self.yaml = self.init_yaml()
-            raise e
+            raise
 
     def loads(self, data: str, cl: type[T]) -> T:
         try:
             return self.structure(self.yaml.load(data), cl)
-        except Exception as e:
+        except Exception:
             self.yaml = self.init_yaml()
-            raise e
+            raise
 
 
 @wrap(RuamelyamlConverter)

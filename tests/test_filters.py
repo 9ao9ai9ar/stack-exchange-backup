@@ -14,6 +14,7 @@ from stackexchange.model import (
     ReadFilterParameters,
 )
 
+# ruff: ignore[UP040]
 FilterType: TypeAlias = Literal["safe", "unsafe", "invalid"]
 
 
